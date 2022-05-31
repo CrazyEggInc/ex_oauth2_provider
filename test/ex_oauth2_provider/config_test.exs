@@ -10,6 +10,33 @@ defmodule ExOauth2Provider.ConfigTest do
     end)
   end
 
+  test "application/1" do
+    assert Config.application(otp_app: :my_app) == MyApp.OauthApplications.OauthApplication
+
+    Application.delete_env(:ex_oauth2_provider, ExOauth2Provider)
+    Application.put_env(:my_app, ExOauth2Provider, application: :custom_value)
+
+    assert Config.application(otp_app: :my_app) == :custom_value
+  end
+
+  test "acess_token/1" do
+    assert Config.access_token(otp_app: :my_app) == MyApp.OauthAccessTokens.OauthAccessToken
+
+    Application.delete_env(:ex_oauth2_provider, ExOauth2Provider)
+    Application.put_env(:my_app, ExOauth2Provider, access_token: :custom_value)
+
+    assert Config.access_token(otp_app: :my_app) == :custom_value
+  end
+
+  test "acess_grant/1" do
+    assert Config.access_grant(otp_app: :my_app) == MyApp.OauthAccessGrants.OauthAccessGrant
+
+    Application.delete_env(:ex_oauth2_provider, ExOauth2Provider)
+    Application.put_env(:my_app, ExOauth2Provider, access_grant: :custom_value)
+
+    assert Config.access_grant(otp_app: :my_app) == :custom_value
+  end
+
   test "repo/1" do
     assert Config.repo(otp_app: :my_app) == Dummy.Repo
 

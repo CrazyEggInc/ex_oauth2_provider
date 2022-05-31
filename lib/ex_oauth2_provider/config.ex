@@ -43,12 +43,18 @@ defmodule ExOauth2Provider.Config do
     do: get_oauth_struct(config, :application)
 
   defp get_oauth_struct(config, name, namespace \\ "oauth") do
-    context = Macro.camelize("#{namespace}_#{name}s")
-    module = Macro.camelize("#{namespace}_#{name}")
+    case get(config, name) do
+      nil ->
+        context = Macro.camelize("#{namespace}_#{name}s")
+        module = Macro.camelize("#{namespace}_#{name}")
 
-    config
-    |> get(name)
-    |> Kernel.||(app_module(config, context, module))
+        config
+        |> get(name)
+        |> Kernel.||(app_module(config, context, module))
+
+      module ->
+        module
+    end
   end
 
   @doc """
