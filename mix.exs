@@ -23,7 +23,7 @@ defmodule ExOauth2Provider.Mixfile do
   end
 
   def application do
-    [extra_applications: extra_applications(Mix.env)]
+    [extra_applications: extra_applications(Mix.env())]
   end
 
   defp extra_applications(:test), do: [:ecto, :logger]
@@ -45,7 +45,8 @@ defmodule ExOauth2Provider.Mixfile do
 
       {:ecto_sql, "~> 3.10", only: :test},
       {:plug_cowboy, "~> 2.0", only: :test},
-      {:postgrex, "~> 0.14", only: :test}]
+      {:postgrex, "~> 0.14", only: :test}
+    ]
   end
 
   defp package do
