@@ -192,7 +192,7 @@ defmodule ExOauth2Provider.Authorization.Code do
 
   defp validate_resource_owner({:ok, %{resource_owner: resource_owner} = params}) do
     case resource_owner do
-      %{__struct__: _} -> {:ok, params}
+      record when is_map(record) -> {:ok, params}
       _                -> Error.add_error({:ok, params}, Error.invalid_request())
     end
   end
