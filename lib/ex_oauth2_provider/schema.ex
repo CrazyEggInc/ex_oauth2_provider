@@ -23,7 +23,7 @@ defmodule ExOauth2Provider.Schema do
 
         {name, type, field_options, _migration_options} ->
           field(name, type, field_options)
-        end)
+      end)
 
       unquote(module).assocs()
       |> unquote(__MODULE__).__assocs_with_queryable__(@config)
