@@ -1,6 +1,7 @@
 import Config
 
 config :ex_oauth2_provider, namespace: Dummy
+
 config :ex_oauth2_provider, ExOauth2Provider,
   repo: Dummy.Repo,
   resource_owner: Dummy.Users.User,
@@ -12,7 +13,11 @@ config :ex_oauth2_provider, ExOauth2Provider,
   grant_flows: ~w(authorization_code client_credentials)
 
 config :ex_oauth2_provider, Dummy.Repo,
-  database: "ex_oauth2_provider_test",
+  database: System.get_env("POSTGRES_DATABASE") || "ex_oauth2_provider_test",
+  username: System.get_env("POSTGRES_USERNAME") || "postgres",
+  password: System.get_env("POSTGRES_PASSWORD") || "postgres",
+  hostname: System.get_env("POSTGRES_HOSTNAME") || "localhost",
+  port: (System.get_env("POSTGRES_PORT") || "5432") |> String.to_integer(),
   pool: Ecto.Adapters.SQL.Sandbox,
   priv: "test/support/priv",
   url: System.get_env("POSTGRES_URL")
