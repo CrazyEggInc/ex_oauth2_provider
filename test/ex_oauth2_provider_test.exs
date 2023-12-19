@@ -1,5 +1,6 @@
 defmodule ExOauth2ProviderTest do
   use ExOauth2Provider.TestCase
+
   doctest ExOauth2Provider
 
   alias ExOauth2Provider.AccessTokens

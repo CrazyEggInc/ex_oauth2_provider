@@ -1,16 +1,13 @@
 defmodule ExOauth2Provider.Test.Fixtures do
   @moduledoc false
 
-  alias ExOauth2Provider.AccessTokens
 
-  alias Dummy.{
-    OauthApplications.OauthApplication,
-    OauthAccessGrants.OauthAccessGrant,
-    Repo,
-    Users.User
-  }
-
+  alias Dummy.OauthApplications.OauthApplication
+  alias Dummy.OauthAccessGrants.OauthAccessGrant
+  alias Dummy.Repo
+  alias Dummy.Users.User
   alias Ecto.Changeset
+  alias ExOauth2Provider.AccessTokens
 
   def resource_owner(attrs \\ []) do
     attrs = Keyword.merge([email: "foo@example.com"], attrs)

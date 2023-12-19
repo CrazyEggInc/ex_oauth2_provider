@@ -1,7 +1,8 @@
 defmodule Dummy.Auth do
   @moduledoc false
 
-  alias Dummy.{Users.User, Repo}
+  alias Dummy.Users.User
+  alias Dummy.Repo
 
   def auth(username, password) do
     user = Repo.get_by(User, email: username)

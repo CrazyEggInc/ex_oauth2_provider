@@ -1,5 +1,6 @@
 defmodule Dummy.Users.User do
   @moduledoc false
+
   use Ecto.Schema
 
   if System.get_env("UUID") do

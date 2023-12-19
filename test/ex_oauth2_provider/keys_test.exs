@@ -1,5 +1,6 @@
 defmodule ExOauth2Provider.KeysTest do
   use ExUnit.Case
+
   alias ExOauth2Provider.Keys
 
   test "access_token/1" do

@@ -1,5 +1,6 @@
 defmodule ExOauth2Provider.Mix.TestCase do
   @moduledoc false
+
   use ExUnit.CaseTemplate
 
   setup_all do

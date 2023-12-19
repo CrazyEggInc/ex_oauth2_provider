@@ -3,7 +3,8 @@ defmodule ExOauth2Provider.Plug.VerifyHeaderTest do
   use ExOauth2Provider.ConnCase
 
   alias Plug.Conn
-  alias ExOauth2Provider.{Plug, Plug.VerifyHeader}
+  alias ExOauth2Provider.Plug
+  alias ExOauth2Provider.Plug.VerifyHeader
   alias ExOauth2Provider.Test.Fixtures
 
   test "with no access token at a default location", %{conn: conn} do

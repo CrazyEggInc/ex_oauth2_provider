@@ -1,5 +1,6 @@
 defmodule ExOauth2Provider.ConfigTest do
   use ExUnit.Case
+
   alias ExOauth2Provider.Config
 
   setup do

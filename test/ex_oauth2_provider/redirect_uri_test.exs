@@ -1,6 +1,8 @@
 defmodule ExOauth2Provider.RedirectURITest do
   use ExUnit.Case
-  alias ExOauth2Provider.{Config, RedirectURI}
+
+  alias ExOauth2Provider.Config
+  alias ExOauth2Provider.RedirectURI
 
   test "validate/2 native url" do
     uri = Config.native_redirect_uri(otp_app: :ex_oauth2_provider)

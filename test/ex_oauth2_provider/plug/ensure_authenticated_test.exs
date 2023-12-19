@@ -2,7 +2,8 @@ defmodule ExOauth2Provider.Plug.EnsureAuthenticatedTest do
   @moduledoc false
   use ExOauth2Provider.ConnCase
 
-  alias ExOauth2Provider.{Plug, Plug.EnsureAuthenticated}
+  alias ExOauth2Provider.Plug
+  alias ExOauth2Provider.Plug.EnsureAuthenticated
   alias ExOauth2Provider.Test.Fixtures
 
   defmodule TestHandler do

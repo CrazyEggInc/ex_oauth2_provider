@@ -2,9 +2,10 @@ defmodule ExOauth2Provider.Test.QueryHelpers do
   @moduledoc false
 
   alias Dummy.Repo
-  import Ecto.Query
   alias Ecto.Changeset
   alias ExOauth2Provider.Schema
+
+  import Ecto.Query
 
   def change!(struct, changes) do
     changes = convert_timestamps(changes)
