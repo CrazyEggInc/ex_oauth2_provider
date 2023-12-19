@@ -12,7 +12,8 @@ defmodule ExOauth2Provider.Plug do
       ExOauth2Provider.Plug.current_resource_owner(conn)
   """
 
-  alias ExOauth2Provider.{Keys, AccessTokens.AccessToken}
+  alias ExOauth2Provider.AccessTokens.AccessToken
+  alias ExOauth2Provider.Keys
   alias Plug.Conn
 
   @doc """

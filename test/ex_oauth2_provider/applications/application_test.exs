@@ -35,11 +35,8 @@ defmodule ExOauth2Provider.Applications.ApplicationTest do
     end
 
     test "require valid redirect uri", %{application: application} do
-      ["",
-      "invalid",
-      "https://example.com invalid",
-      "https://example.com http://example.com"]
-      |> Enum.each(fn(redirect_uri) ->
+      ["", "invalid", "https://example.com invalid", "https://example.com http://example.com"]
+      |> Enum.each(fn redirect_uri ->
         changeset = Application.changeset(application, %{redirect_uri: redirect_uri})
         assert changeset.errors[:redirect_uri]
       end)
@@ -63,7 +60,7 @@ defmodule ExOauth2Provider.Applications.ApplicationTest do
     end
 
     schema "oauth_applications" do
-      belongs_to :owner, __MODULE__
+      belongs_to(:owner, __MODULE__)
 
       application_fields()
       timestamps()
@@ -71,6 +68,7 @@ defmodule ExOauth2Provider.Applications.ApplicationTest do
   end
 
   test "with overridden `:owner`" do
-    assert %Ecto.Association.BelongsTo{owner: OverrideOwner} = OverrideOwner.__schema__(:association, :owner)
+    assert %Ecto.Association.BelongsTo{owner: OverrideOwner} =
+             OverrideOwner.__schema__(:association, :owner)
   end
 end
