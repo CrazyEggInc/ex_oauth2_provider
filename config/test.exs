@@ -1,4 +1,4 @@
-use Mix.Config
+import Config
 
 config :ex_oauth2_provider, namespace: Dummy
 
@@ -19,4 +19,5 @@ config :ex_oauth2_provider, Dummy.Repo,
   hostname: System.get_env("POSTGRES_HOSTNAME") || "localhost",
   port: (System.get_env("POSTGRES_PORT") || "5432") |> String.to_integer(),
   pool: Ecto.Adapters.SQL.Sandbox,
-  priv: "test/support/priv"
+  priv: "test/support/priv",
+  url: System.get_env("POSTGRES_URL")

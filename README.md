@@ -1,6 +1,8 @@
 # ExOauth2Provider
 
-[![Build Status](https://travis-ci.org/danschultzer/ex_oauth2_provider.svg?branch=master)](https://travis-ci.org/danschultzer/ex_oauth2_provider) [![hex.pm](http://img.shields.io/hexpm/v/ex_oauth2_provider.svg?style=flat)](https://hex.pm/packages/ex_oauth2_provider) [![hex.pm downloads](https://img.shields.io/hexpm/dt/ex_oauth2_provider.svg?style=flat)](https://hex.pm/packages/ex_oauth2_provider)
+[![Github CI](https://github.com/danschultzer/ex_oauth2_provider/workflows/CI/badge.svg)](https://github.com/danschultzer/ex_oauth2_provider/actions?query=workflow%3ACI)
+[![hex.pm](http://img.shields.io/hexpm/v/ex_oauth2_provider.svg?style=flat)](https://hex.pm/packages/ex_oauth2_provider)
+[![hex.pm downloads](https://img.shields.io/hexpm/dt/ex_oauth2_provider.svg?style=flat)](https://hex.pm/packages/ex_oauth2_provider)
 
 The no-brainer library to use for adding OAuth 2.0 provider capabilities to your Elixir app. You can use [phoenix_oauth2_provider](https://github.com/danschultzer/phoenix_oauth2_provider) for easy integration with your Phoenix app.
 
@@ -12,7 +14,7 @@ Add ExOauth2Provider to your list of dependencies in `mix.exs`:
 def deps do
   [
     # ...
-    {:ex_oauth2_provider, "~> 0.5.6"}
+    {:ex_oauth2_provider, "~> 0.5.7"}
     # ...
   ]
 end
@@ -28,7 +30,7 @@ Generate the migrations and schema modules:
 mix ex_oauth2_provider.install
 ```
 
-Add the following to `config/config.ex`:
+Add the following to `config/config.exs`:
 
 ```elixir
 config :my_app, ExOauth2Provider,
@@ -232,13 +234,13 @@ end
 If the Authorization Header was verified, you'll be able to retrieve the current resource owner or access token.
 
 ```elixir
-ExOauth2Provider.Plug.current_access_token(conn) # access the token in the default location
-ExOauth2Provider.Plug.current_access_token(conn, :secret) # access the token in the secret location
+ExOauth2Provider.Plug.current_access_token(conn) # access the token in the `:default` location
+ExOauth2Provider.Plug.current_access_token(conn, :custom) # access the token in the `:custom` location if set as `:key` option in `plug ExOauth2Provider.Plug.VerifyHeader`
 ```
 
 ```elixir
-ExOauth2Provider.Plug.current_resource_owner(conn) # Access the loaded resource owner in the default location
-ExOauth2Provider.Plug.current_resource_owner(conn, :secret) # Access the loaded resource owner in the secret location
+ExOauth2Provider.Plug.current_resource_owner(conn) # Access the loaded resource owner in the `:default` location
+ExOauth2Provider.Plug.current_resource_owner(conn, :custom) # Access the loaded resource owner in the `:secret` location if set as `:key` option in `plug ExOauth2Provider.Plug.VerifyHeader`
 ```
 
 ### Custom access token generator
