@@ -26,5 +26,4 @@ if config_env() == :test do
     pool: Ecto.Adapters.SQL.Sandbox,
     priv: "test/support/priv",
     url: System.get_env("POSTGRES_URL")
-
 end
