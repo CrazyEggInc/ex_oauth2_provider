@@ -1,5 +1,6 @@
 defmodule ExOauth2Provider.ScopesTest do
   use ExUnit.Case
+
   alias ExOauth2Provider.Scopes
 
   test "all?#true" do

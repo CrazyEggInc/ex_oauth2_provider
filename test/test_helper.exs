@@ -1,5 +1,3 @@
-Logger.configure(level: :warn)
-
 ExUnit.start()
 
 # Ensure that symlink to custom ecto priv directory exists

@@ -1,5 +1,6 @@
 defmodule ExOauth2Provider.UtilTest do
   use ExUnit.Case
+
   alias ExOauth2Provider.Utils
 
   test "remove_empty_values/1" do

@@ -2,8 +2,9 @@ defmodule ExOauth2Provider.Plug.EnsureScopesTest do
   @moduledoc false
   use ExOauth2Provider.ConnCase
 
-  alias ExOauth2Provider.{Plug, Plug.EnsureScopes}
   alias Dummy.OauthAccessTokens.OauthAccessToken
+  alias ExOauth2Provider.Plug
+  alias ExOauth2Provider.Plug.EnsureScopes
 
   @default_scopes "read write"
 
@@ -61,7 +62,7 @@ defmodule ExOauth2Provider.Plug.EnsureScopesTest do
 
   defp run_plug(conn, scopes, opts) do
     access_token = %OauthAccessToken{token: "secret", scopes: scopes}
-    opts         = Keyword.merge([handler: TestHandler], opts)
+    opts = Keyword.merge([handler: TestHandler], opts)
 
     conn
     |> Plug.set_current_access_token({:ok, access_token})

@@ -1,5 +1,6 @@
 defmodule ExOauth2Provider.Mix.TestCase do
   @moduledoc false
+
   use ExUnit.CaseTemplate
 
   setup_all do
@@ -11,9 +12,9 @@ defmodule ExOauth2Provider.Mix.TestCase do
   setup _context do
     current_shell = Mix.shell()
 
-    on_exit fn ->
+    on_exit(fn ->
       Mix.shell(current_shell)
-    end
+    end)
 
     Mix.shell(Mix.Shell.Process)
 
