@@ -43,7 +43,7 @@ defmodule ExOauth2Provider.Mixin.Expirable do
 
   def is_expired?(%struct{expires_in: expires_in, inserted_at: inserted_at}) do
     now = SchemaHelpers.__timestamp_for__(struct, :inserted_at)
-    type = now.__struct__()
+    type = now.__struct__
 
     inserted_at
     |> type.add(expires_in, :second)
