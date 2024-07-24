@@ -1,7 +1,6 @@
 defmodule ExOauth2Provider.Test.Fixtures do
   @moduledoc false
 
-
   alias Dummy.OauthApplications.OauthApplication
   alias Dummy.OauthAccessGrants.OauthAccessGrant
   alias Dummy.Repo
