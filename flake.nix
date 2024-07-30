@@ -11,7 +11,7 @@
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
+        pkgs = import nixpkgs { inherit system; };
 
         erlang = pkgs.beam.interpreters.erlang_27;
         beamPkgs = pkgs.beam.packagesWith erlang;
@@ -19,23 +19,10 @@
       in
       {
         devShells.default = pkgs.mkShell {
-          buildInputs =
-            [
-              elixir
-              pkgs.git
-            ]
-            ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
-              pkgs.inotify-tools
-              pkgs.libnotify
-            ]
-            ++ pkgs.lib.optionals pkgs.stdenv.isDarwin (
-              with pkgs.darwin.apple_sdk.frameworks;
-              [
-                terminal-notifier
-                CoreFoundation
-                CoreServices
-              ]
-            );
+          buildInputs = [
+            elixir
+            pkgs.git
+          ];
 
           env = {
             ERL_INCLUDE_PATH = "${erlang}/lib/erlang/usr/include";
