@@ -138,22 +138,22 @@ defmodule ExOauth2Provider.RedirectURI do
   defp loopback_origin_registration?(%URI{
          scheme: "http",
          host: host,
-         port: nil,
+         port: port,
          query: nil,
          fragment: nil
        })
-       when host in ["127.0.0.1", "localhost", "::1"],
+       when host in ["127.0.0.1", "localhost", "::1"] and port in [nil, 80],
        do: true
 
   defp loopback_origin_registration?(%URI{
          scheme: "http",
          host: host,
          path: "/",
-         port: nil,
+         port: port,
          query: nil,
          fragment: nil
        })
-       when host in ["127.0.0.1", "localhost", "::1"],
+       when host in ["127.0.0.1", "localhost", "::1"] and port in [nil, 80],
        do: true
 
   defp loopback_origin_registration?(_uri), do: false
