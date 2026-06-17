@@ -27,7 +27,9 @@ defmodule ExOauth2Provider.AccessGrants.AccessGrant do
       {:expires_in, :integer, [], null: false},
       {:redirect_uri, :string, [], null: false},
       {:revoked_at, :utc_datetime},
-      {:scopes, :string}
+      {:scopes, :string},
+      {:code_challenge, :string},
+      {:code_challenge_method, :string}
     ]
   end
 
@@ -66,12 +68,19 @@ defmodule ExOauth2Provider.AccessGrants.AccessGrant do
   @spec changeset(Ecto.Schema.t(), map(), keyword()) :: Changeset.t()
   def changeset(grant, params, config) do
     grant
-    |> Changeset.cast(params, [:redirect_uri, :expires_in, :scopes])
+    |> Changeset.cast(params, [
+      :redirect_uri,
+      :expires_in,
+      :scopes,
+      :code_challenge,
+      :code_challenge_method
+    ])
     |> Changeset.assoc_constraint(:application)
     |> Changeset.assoc_constraint(:resource_owner)
     |> put_token()
     |> Scopes.put_scopes(grant.application.scopes, config)
     |> Scopes.validate_scopes(grant.application.scopes, config)
+    |> validate_code_challenge_method()
     |> Changeset.validate_required([
       :redirect_uri,
       :expires_in,
@@ -80,6 +89,14 @@ defmodule ExOauth2Provider.AccessGrants.AccessGrant do
       :application
     ])
     |> Changeset.unique_constraint(:token)
+  end
+
+  defp validate_code_challenge_method(changeset) do
+    case Changeset.get_field(changeset, :code_challenge_method) do
+      nil -> changeset
+      "S256" -> changeset
+      _ -> Changeset.add_error(changeset, :code_challenge_method, "is invalid")
+    end
   end
 
   @spec put_token(Ecto.Changeset.t()) :: Ecto.Changeset.t()

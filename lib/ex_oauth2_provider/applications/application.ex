@@ -45,6 +45,7 @@ defmodule ExOauth2Provider.Applications.Application do
       {:name, :string, [], null: false},
       {:uid, :string, [], null: false},
       {:secret, :string, [default: ""], null: false},
+      {:client_type, :string, [default: "confidential"], null: false},
       {:redirect_uri, :string, [], null: false},
       {:scopes, :string, [default: ""], null: false}
     ]
@@ -87,9 +88,11 @@ defmodule ExOauth2Provider.Applications.Application do
   def changeset(application, params, config \\ []) do
     application
     |> maybe_new_application_changeset(params, config)
-    |> Changeset.cast(params, [:name, :secret, :redirect_uri, :scopes])
+    |> Changeset.cast(params, [:name, :secret, :client_type, :redirect_uri, :scopes])
     |> Changeset.validate_required([:name, :uid, :redirect_uri])
     |> validate_secret_not_nil()
+    |> validate_client_type()
+    |> normalize_secret_for_public_client()
     |> Scopes.validate_scopes(nil, config)
     |> validate_redirect_uri(config)
     |> Changeset.unique_constraint(:uid)
@@ -111,11 +114,15 @@ defmodule ExOauth2Provider.Applications.Application do
 
   defp new_application_changeset(application, params, config) do
     application
-    |> Changeset.cast(params, [:uid, :secret])
+    |> Changeset.cast(params, [:uid, :secret, :client_type])
     |> put_uid()
     |> put_secret()
     |> Scopes.put_scopes(nil, config)
     |> Changeset.assoc_constraint(:owner)
+  end
+
+  defp validate_client_type(changeset) do
+    Changeset.validate_inclusion(changeset, :client_type, ["confidential", "public"])
   end
 
   defp validate_redirect_uri(changeset, config) do
@@ -143,5 +150,12 @@ defmodule ExOauth2Provider.Applications.Application do
 
   defp put_secret(%{} = changeset) do
     Changeset.change(changeset, %{secret: Utils.generate_token()})
+  end
+
+  defp normalize_secret_for_public_client(changeset) do
+    case Changeset.get_field(changeset, :client_type) do
+      "public" -> Changeset.put_change(changeset, :secret, "")
+      _ -> changeset
+    end
   end
 end
