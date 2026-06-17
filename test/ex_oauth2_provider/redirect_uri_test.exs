@@ -127,6 +127,22 @@ defmodule ExOauth2Provider.RedirectURITest do
            )
   end
 
+  test "valid_for_authorization?#true for localhost registration and 127.0.0.1 callback" do
+    assert RedirectURI.valid_for_authorization?(
+             "http://127.0.0.1:49215/callback/random-path",
+             "http://localhost",
+             allow_public_loopback_redirect_uri: true
+           )
+  end
+
+  test "valid_for_authorization?#true for 127.0.0.1 registration and localhost callback" do
+    assert RedirectURI.valid_for_authorization?(
+             "http://localhost:49215/callback/random-path",
+             "http://127.0.0.1",
+             allow_public_loopback_redirect_uri: true
+           )
+  end
+
   test "valid_for_authorization?#false for public loopback redirect without opt-in" do
     refute RedirectURI.valid_for_authorization?(
              "http://127.0.0.1:49215/callback/random-path",

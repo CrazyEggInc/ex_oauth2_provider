@@ -132,7 +132,7 @@ defmodule ExOauth2Provider.RedirectURI do
       loopback_origin_registration?(client_uri) and
       loopback_callback_uri?(uri) and
       uri.scheme == client_uri.scheme and
-      uri.host == client_uri.host
+      same_loopback_host?(uri.host, client_uri.host)
   end
 
   defp loopback_origin_registration?(%URI{
@@ -174,4 +174,11 @@ defmodule ExOauth2Provider.RedirectURI do
        do: true
 
   defp loopback_uri?(_uri), do: false
+
+  defp same_loopback_host?(host_a, host_b) do
+    loopback_host?(host_a) and loopback_host?(host_b)
+  end
+
+  defp loopback_host?(host) when host in ["127.0.0.1", "localhost", "::1"], do: true
+  defp loopback_host?(_host), do: false
 end
