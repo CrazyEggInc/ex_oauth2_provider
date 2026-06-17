@@ -238,11 +238,14 @@ defmodule ExOauth2Provider.Authorization.Code do
          {:ok, %{request: %{"redirect_uri" => redirect_uri}, client: client} = params},
          config
        ) do
+    redirect_uri_config =
+      Keyword.put(config, :allow_public_loopback_redirect_uri, client.client_type == "public")
+
     cond do
       RedirectURI.native_redirect_uri?(redirect_uri, config) ->
         {:ok, params}
 
-      RedirectURI.valid_for_authorization?(redirect_uri, client.redirect_uri, config) ->
+      RedirectURI.valid_for_authorization?(redirect_uri, client.redirect_uri, redirect_uri_config) ->
         {:ok, params}
 
       true ->

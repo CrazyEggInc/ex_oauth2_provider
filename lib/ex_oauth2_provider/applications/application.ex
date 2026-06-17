@@ -126,13 +126,17 @@ defmodule ExOauth2Provider.Applications.Application do
   end
 
   defp validate_redirect_uri(changeset, config) do
+    public_client? = Changeset.get_field(changeset, :client_type) == "public"
+
     changeset
     |> Changeset.get_field(:redirect_uri)
     |> Kernel.||("")
     |> String.split()
     |> Enum.reduce(changeset, fn url, changeset ->
       url
-      |> RedirectURI.validate(config)
+      |> RedirectURI.validate(
+        Keyword.put(config, :allow_public_loopback_redirect_uri, public_client?)
+      )
       |> case do
         {:error, error} -> Changeset.add_error(changeset, :redirect_uri, error)
         {:ok, _} -> changeset

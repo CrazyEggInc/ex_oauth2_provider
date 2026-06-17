@@ -42,6 +42,16 @@ defmodule ExOauth2Provider.Applications.ApplicationTest do
       end)
     end
 
+    test "allows loopback http redirect uri for public clients", %{application: application} do
+      changeset =
+        Application.changeset(application, %{
+          client_type: "public",
+          redirect_uri: "http://127.0.0.1"
+        })
+
+      refute changeset.errors[:redirect_uri]
+    end
+
     test "doesn't require scopes", %{application: application} do
       changeset = Application.changeset(application, %{scopes: ""})
       refute changeset.errors[:scopes]

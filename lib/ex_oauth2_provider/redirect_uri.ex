@@ -43,7 +43,11 @@ defmodule ExOauth2Provider.RedirectURI do
   defp do_validate(_url, _uri, _config),
     do: {:error, "Redirect URI must be an absolute URI"}
 
-  defp invalid_ssl_uri?(%{scheme: "http"}, config), do: Config.force_ssl_in_redirect_uri?(config)
+  defp invalid_ssl_uri?(%{scheme: "http"} = uri, config) do
+    Config.force_ssl_in_redirect_uri?(config) and
+      not (Keyword.get(config, :allow_public_loopback_redirect_uri, false) and loopback_uri?(uri))
+  end
+
   defp invalid_ssl_uri?(_uri, _config), do: false
 
   @doc false
@@ -60,9 +64,15 @@ defmodule ExOauth2Provider.RedirectURI do
 
   @spec matches?(URI.t(), URI.t(), keyword()) :: boolean()
   def matches?(%URI{} = uri, %URI{} = client_uri, config) do
-    case Config.redirect_uri_match_fun(config) do
-      nil -> client_uri == %{uri | query: nil}
-      fun -> fun.(uri, client_uri, config)
+    cond do
+      allow_public_loopback_redirect_uri?(uri, client_uri, config) ->
+        true
+
+      true ->
+        case Config.redirect_uri_match_fun(config) do
+          nil -> client_uri == %{uri | query: nil}
+          fun -> fun.(uri, client_uri, config)
+        end
     end
   end
 
@@ -116,4 +126,52 @@ defmodule ExOauth2Provider.RedirectURI do
     |> Utils.remove_empty_values()
     |> URI.encode_query()
   end
+
+  defp allow_public_loopback_redirect_uri?(uri, client_uri, config) do
+    Keyword.get(config, :allow_public_loopback_redirect_uri, false) and
+      loopback_origin_registration?(client_uri) and
+      loopback_callback_uri?(uri) and
+      uri.scheme == client_uri.scheme and
+      uri.host == client_uri.host
+  end
+
+  defp loopback_origin_registration?(%URI{
+         scheme: "http",
+         host: host,
+         port: nil,
+         query: nil,
+         fragment: nil
+       })
+       when host in ["127.0.0.1", "localhost", "::1"],
+       do: true
+
+  defp loopback_origin_registration?(%URI{
+         scheme: "http",
+         host: host,
+         path: "/",
+         port: nil,
+         query: nil,
+         fragment: nil
+       })
+       when host in ["127.0.0.1", "localhost", "::1"],
+       do: true
+
+  defp loopback_origin_registration?(_uri), do: false
+
+  defp loopback_callback_uri?(%URI{
+         scheme: "http",
+         host: host,
+         port: port,
+         fragment: nil
+       })
+       when host in ["127.0.0.1", "localhost", "::1"] and is_integer(port),
+       do: true
+
+  defp loopback_callback_uri?(_uri), do: false
+
+  defp loopback_uri?(%URI{scheme: "http", host: host})
+       when host in ["127.0.0.1", "localhost", "::1"],
+       do: true
+
+  defp loopback_uri?(_uri), do: false
 end
