@@ -33,6 +33,7 @@ defmodule ExOauth2Provider.Token.AuthorizationCode do
     |> Utils.load_client(config)
     |> load_active_access_grant(config)
     |> validate_redirect_uri()
+    |> validate_pkce()
     |> issue_access_token_by_grant(config)
     |> Response.response(config)
   end
@@ -111,4 +112,35 @@ defmodule ExOauth2Provider.Token.AuthorizationCode do
 
   defp validate_redirect_uri({:ok, params}),
     do: Error.add_error({:ok, params}, Error.invalid_grant())
+
+  defp validate_pkce({:error, params}), do: {:error, params}
+
+  defp validate_pkce(
+         {:ok,
+          %{access_grant: %{code_challenge: nil, application: %{client_type: "public"}}} = params}
+       ) do
+    Error.add_error({:ok, params}, Error.invalid_grant())
+  end
+
+  defp validate_pkce({:ok, %{access_grant: %{code_challenge: nil}} = params}), do: {:ok, params}
+
+  defp validate_pkce(
+         {:ok,
+          %{
+            request: %{"code_verifier" => code_verifier},
+            access_grant: %{code_challenge: code_challenge, code_challenge_method: "S256"}
+          } = params}
+       )
+       when is_binary(code_verifier) and byte_size(code_verifier) > 0 do
+    hashed_verifier = Base.url_encode64(:crypto.hash(:sha256, code_verifier), padding: false)
+
+    case hashed_verifier == code_challenge do
+      true -> {:ok, params}
+      false -> Error.add_error({:ok, params}, Error.invalid_grant())
+    end
+  end
+
+  defp validate_pkce({:ok, %{access_grant: %{code_challenge: _}} = params}) do
+    Error.add_error({:ok, params}, Error.invalid_grant())
+  end
 end

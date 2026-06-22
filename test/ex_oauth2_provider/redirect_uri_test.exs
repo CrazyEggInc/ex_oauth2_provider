@@ -35,6 +35,18 @@ defmodule ExOauth2Provider.RedirectURITest do
     assert RedirectURI.validate(uri, force_ssl_in_redirect_uri: false) == {:ok, uri}
   end
 
+  test "validate/2 accepts loopback http uri for public clients" do
+    uri = "http://127.0.0.1"
+
+    assert RedirectURI.validate(uri, allow_public_loopback_redirect_uri: true) == {:ok, uri}
+  end
+
+  test "validate/2 rejects loopback http uri without opt-in" do
+    uri = "http://127.0.0.1"
+
+    assert RedirectURI.validate(uri, []) == {:error, "Redirect URI must be an HTTPS/SSL URI"}
+  end
+
   test "validate/2 accepts absolute uri" do
     uri = "https://app.co"
     assert RedirectURI.validate(uri, []) == {:ok, uri}
@@ -103,6 +115,38 @@ defmodule ExOauth2Provider.RedirectURITest do
     assert RedirectURI.valid_for_authorization?(
              "https://app.co/aaa",
              "https://example.com/bbb\nhttps://app.co/aaa",
+             []
+           )
+  end
+
+  test "valid_for_authorization?#true for public loopback redirect with dynamic port and path" do
+    assert RedirectURI.valid_for_authorization?(
+             "http://127.0.0.1:49215/callback/random-path",
+             "http://127.0.0.1",
+             allow_public_loopback_redirect_uri: true
+           )
+  end
+
+  test "valid_for_authorization?#true for localhost registration and 127.0.0.1 callback" do
+    assert RedirectURI.valid_for_authorization?(
+             "http://127.0.0.1:49215/callback/random-path",
+             "http://localhost",
+             allow_public_loopback_redirect_uri: true
+           )
+  end
+
+  test "valid_for_authorization?#true for 127.0.0.1 registration and localhost callback" do
+    assert RedirectURI.valid_for_authorization?(
+             "http://localhost:49215/callback/random-path",
+             "http://127.0.0.1",
+             allow_public_loopback_redirect_uri: true
+           )
+  end
+
+  test "valid_for_authorization?#false for public loopback redirect without opt-in" do
+    refute RedirectURI.valid_for_authorization?(
+             "http://127.0.0.1:49215/callback/random-path",
+             "http://127.0.0.1",
              []
            )
   end

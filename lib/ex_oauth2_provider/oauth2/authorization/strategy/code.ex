@@ -159,7 +159,7 @@ defmodule ExOauth2Provider.Authorization.Code do
        ) do
     grant_params =
       request
-      |> Map.take(["redirect_uri", "scope"])
+      |> Map.take(["redirect_uri", "scope", "code_challenge", "code_challenge_method"])
       |> Map.new(fn {k, v} ->
         case k do
           "scope" -> {:scopes, v}
@@ -206,6 +206,7 @@ defmodule ExOauth2Provider.Authorization.Code do
     |> validate_resource_owner()
     |> validate_redirect_uri(config)
     |> validate_scopes(config)
+    |> validate_pkce()
   end
 
   defp validate_resource_owner({:ok, %{resource_owner: resource_owner} = params}) do
@@ -237,11 +238,14 @@ defmodule ExOauth2Provider.Authorization.Code do
          {:ok, %{request: %{"redirect_uri" => redirect_uri}, client: client} = params},
          config
        ) do
+    redirect_uri_config =
+      Keyword.put(config, :allow_public_loopback_redirect_uri, client.client_type == "public")
+
     cond do
       RedirectURI.native_redirect_uri?(redirect_uri, config) ->
         {:ok, params}
 
-      RedirectURI.valid_for_authorization?(redirect_uri, client.redirect_uri, config) ->
+      RedirectURI.valid_for_authorization?(redirect_uri, client.redirect_uri, redirect_uri_config) ->
         {:ok, params}
 
       true ->
@@ -251,4 +255,26 @@ defmodule ExOauth2Provider.Authorization.Code do
 
   defp validate_redirect_uri({:ok, params}, _config),
     do: Error.add_error({:ok, params}, Error.invalid_request())
+
+  defp validate_pkce({:error, params}), do: {:error, params}
+
+  defp validate_pkce({:ok, %{client: %{client_type: "public"}, request: request} = params}) do
+    case {Map.get(request, "code_challenge"), Map.get(request, "code_challenge_method")} do
+      {code_challenge, "S256"} when is_binary(code_challenge) and byte_size(code_challenge) > 0 ->
+        {:ok, params}
+
+      _ ->
+        Error.add_error({:ok, params}, Error.invalid_request())
+    end
+  end
+
+  defp validate_pkce({:ok, %{request: %{"code_challenge" => code_challenge} = request} = params})
+       when is_binary(code_challenge) and byte_size(code_challenge) > 0 do
+    case Map.get(request, "code_challenge_method") do
+      "S256" -> {:ok, params}
+      _ -> Error.add_error({:ok, params}, Error.invalid_request())
+    end
+  end
+
+  defp validate_pkce({:ok, params}), do: {:ok, params}
 end
