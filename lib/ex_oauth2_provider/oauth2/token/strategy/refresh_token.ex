@@ -77,8 +77,9 @@ defmodule ExOauth2Provider.Token.RefreshToken do
       repo.transaction(fn ->
         token_params = token_params(refresh_token, config)
 
-        with {:ok, current_token} <- consume_or_lock_refresh_token(refresh_token, config),
-             {:ok, resource_owner} <- lock_resource_owner(current_token, config) do
+        with {:ok, _current_token} <- consume_or_lock_refresh_token(refresh_token, config),
+             {:ok, resource_owner} <-
+               Utils.lock_resource_owner(refresh_token.resource_owner, config) do
           AccessTokens.create_token(resource_owner, token_params, config)
         end
       end)
@@ -110,26 +111,16 @@ defmodule ExOauth2Provider.Token.RefreshToken do
     end
   end
 
-  defp lock_unrevoked_refresh_token(%struct{id: id}, config) do
-    from(t in struct, where: t.id == ^id and is_nil(t.revoked_at), lock: "FOR SHARE")
-    |> Config.repo(config).one()
+  defp lock_unrevoked_refresh_token(%struct{id: id} = token, config) do
+    source = Ecto.get_meta(token, :source)
+    prefix = Ecto.get_meta(token, :prefix)
+    opts = if prefix, do: [prefix: prefix], else: []
+
+    from(t in {source, struct}, where: t.id == ^id and is_nil(t.revoked_at), lock: "FOR SHARE")
+    |> Config.repo(config).one(opts)
     |> case do
       nil -> {:error, Error.invalid_request()}
-      token -> {:ok, token}
+      locked_token -> {:ok, locked_token}
     end
   end
-
-  defp lock_resource_owner(%{resource_owner_id: owner_id}, config) when not is_nil(owner_id) do
-    repo = Config.repo(config)
-    owner_schema = Config.resource_owner(config)
-
-    from(u in owner_schema, where: u.id == ^owner_id, lock: "FOR SHARE")
-    |> repo.one()
-    |> case do
-      nil -> {:error, Error.invalid_grant()}
-      owner -> {:ok, owner}
-    end
-  end
-
-  defp lock_resource_owner(_token, _config), do: {:error, Error.invalid_grant()}
 end

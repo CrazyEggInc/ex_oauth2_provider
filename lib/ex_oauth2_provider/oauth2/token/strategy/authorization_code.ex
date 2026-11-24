@@ -2,8 +2,6 @@ defmodule ExOauth2Provider.Token.AuthorizationCode do
   @moduledoc """
   Functions for dealing with authorization code strategy.
   """
-  import Ecto.Query
-
   alias ExOauth2Provider.{
     AccessGrants,
     AccessTokens,
@@ -52,7 +50,8 @@ defmodule ExOauth2Provider.Token.AuthorizationCode do
     result =
       repo.transaction(fn ->
         with {:ok, revoked_grant} <- revoke_grant(access_grant, config),
-             {:ok, resource_owner} <- lock_resource_owner(revoked_grant, config) do
+             {:ok, resource_owner} <-
+               Utils.lock_resource_owner(access_grant.resource_owner, config) do
           maybe_create_access_token(resource_owner, revoked_grant, token_params, config)
         end
       end)
@@ -70,20 +69,6 @@ defmodule ExOauth2Provider.Token.AuthorizationCode do
       {:error, :already_revoked} -> {:error, Error.invalid_grant()}
     end
   end
-
-  defp lock_resource_owner(%{resource_owner_id: owner_id}, config) when not is_nil(owner_id) do
-    repo = Config.repo(config)
-    owner_schema = Config.resource_owner(config)
-
-    from(u in owner_schema, where: u.id == ^owner_id, lock: "FOR SHARE")
-    |> repo.one()
-    |> case do
-      nil -> {:error, Error.invalid_grant()}
-      owner -> {:ok, owner}
-    end
-  end
-
-  defp lock_resource_owner(_grant, _config), do: {:error, Error.invalid_grant()}
 
   defp maybe_create_access_token(
          resource_owner,

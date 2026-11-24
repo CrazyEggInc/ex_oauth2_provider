@@ -255,6 +255,24 @@ defmodule ExOauth2Provider.Token.Strategy.AuthorizationCodeTest do
     end
   end
 
+  test "Token.Utils.lock_resource_owner/2 preserves loaded owner schema prefix" do
+    Dummy.Repo.query!("CREATE SCHEMA tenant_owner_test")
+    Dummy.Repo.query!("CREATE TABLE tenant_owner_test.users (LIKE public.users INCLUDING ALL)")
+
+    tenant_owner =
+      %Dummy.Users.User{email: "tenant@example.com"}
+      |> Dummy.Repo.insert!(prefix: "tenant_owner_test")
+
+    assert {:ok, locked_owner} =
+             ExOauth2Provider.Token.Utils.lock_resource_owner(
+               tenant_owner,
+               otp_app: :ex_oauth2_provider
+             )
+
+    assert locked_owner.id == tenant_owner.id
+    assert Ecto.get_meta(locked_owner, :prefix) == "tenant_owner_test"
+  end
+
   def access_token_response_body_handler(body, access_token) do
     Map.merge(body, %{custom_attr: access_token.inserted_at})
   end
