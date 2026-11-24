@@ -31,9 +31,9 @@ defmodule ExOauth2Provider.Token.Password do
   def grant(%{"grant_type" => "password"} = request, config \\ []) do
     {:ok, %{request: request}}
     |> get_password_auth_method(config)
-    |> load_resource_owner()
     |> Utils.load_client(config)
     |> validate_confidential_client()
+    |> load_resource_owner()
     |> set_defaults()
     |> validate_scopes(config)
     |> issue_access_token(config)

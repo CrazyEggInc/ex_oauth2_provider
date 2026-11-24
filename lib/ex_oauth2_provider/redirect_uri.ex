@@ -13,7 +13,7 @@ defmodule ExOauth2Provider.RedirectURI do
   setting.
   """
   @disallowed_schemes ~w(javascript data vbscript file blob)
-  @control_or_whitespace_regex ~r/[\x00-\x1F\x7F\s]/
+  @control_or_whitespace_regex ~r/[\x00-\x1F\x7F\s]/u
 
   @spec validate(binary() | nil, keyword()) :: {:ok, binary()} | {:error, binary()}
   def validate(nil, config), do: validate("", config)
@@ -30,7 +30,10 @@ defmodule ExOauth2Provider.RedirectURI do
         {:ok, url}
 
       true ->
-        do_validate(url, URI.parse(url), config)
+        case URI.new(url) do
+          {:ok, uri} -> do_validate(url, uri, config)
+          {:error, _} -> {:error, "Redirect URI must be an absolute URI"}
+        end
     end
   end
 
@@ -79,7 +82,12 @@ defmodule ExOauth2Provider.RedirectURI do
   """
   @spec matches?(binary(), binary(), keyword()) :: boolean()
   def matches?(uri, client_uri, config) when is_binary(uri) and is_binary(client_uri) do
-    matches?(URI.parse(uri), URI.parse(client_uri), config)
+    with {:ok, parsed_uri} <- URI.new(uri),
+         {:ok, parsed_client_uri} <- URI.new(client_uri) do
+      matches?(parsed_uri, parsed_client_uri, config)
+    else
+      _ -> false
+    end
   end
 
   @spec matches?(URI.t(), URI.t(), keyword()) :: boolean()
@@ -152,13 +160,15 @@ defmodule ExOauth2Provider.RedirectURI do
     Keyword.get(config, :allow_public_loopback_redirect_uri, false) and
       loopback_callback_uri?(uri) and
       uri.scheme == client_uri.scheme and
-      same_loopback_host?(uri.host, client_uri.host) and
       loopback_registration_matches?(uri, client_uri)
   end
 
   defp loopback_registration_matches?(uri, client_uri) do
-    loopback_origin_registration?(client_uri) or
-      (loopback_path_registration?(client_uri) and uri.path == client_uri.path)
+    (loopback_origin_registration?(client_uri) and same_loopback_host?(uri.host, client_uri.host)) or
+      (loopback_path_registration?(client_uri) and
+         uri.host == client_uri.host and
+         uri.path == client_uri.path and
+         uri.query == client_uri.query)
   end
 
   defp loopback_origin_registration?(%URI{
@@ -180,12 +190,10 @@ defmodule ExOauth2Provider.RedirectURI do
          scheme: "http",
          host: host,
          path: path,
-         port: port,
          userinfo: nil,
-         query: nil,
          fragment: nil
        })
-       when host in ["127.0.0.1", "localhost", "::1"] and port in [nil, 80] and
+       when host in ["127.0.0.1", "localhost", "::1"] and
               is_binary(path) and path not in ["", "/"],
        do: true
 

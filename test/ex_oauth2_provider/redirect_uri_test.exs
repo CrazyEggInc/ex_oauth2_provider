@@ -79,6 +79,20 @@ defmodule ExOauth2Provider.RedirectURITest do
     assert {:error, _} = RedirectURI.validate("https://app.co/cb\r\nX-Test: 1", [])
     assert {:error, _} = RedirectURI.validate("https://app.co/cb\n", [])
     assert {:error, _} = RedirectURI.validate("https://app.co/a b", [])
+    assert {:error, _} = RedirectURI.validate("https://app.co/a\u00A0b", [])
+    assert {:error, _} = RedirectURI.validate("https://app.co/a\u2028b", [])
+  end
+
+  test "validate/2 rejects malformed authority uris" do
+    assert {:error, _} =
+             RedirectURI.validate("http://localhost:5555.evil.example/",
+               allow_public_loopback_redirect_uri: true
+             )
+
+    assert {:error, _} =
+             RedirectURI.validate("http://[::1]evil.example/",
+               allow_public_loopback_redirect_uri: true
+             )
   end
 
   test "validate/2 accepts absolute uri" do
@@ -185,28 +199,58 @@ defmodule ExOauth2Provider.RedirectURITest do
            )
   end
 
-  test "valid_for_authorization? enforces registered path for public loopback redirects" do
+  test "valid_for_authorization? enforces registered host, path, and query for path-specific loopback redirects" do
     assert RedirectURI.valid_for_authorization?(
+             "http://127.0.0.1:49215/callback",
+             "http://127.0.0.1/callback",
+             allow_public_loopback_redirect_uri: true
+           )
+
+    assert RedirectURI.valid_for_authorization?(
+             "http://127.0.0.1:49215/callback",
+             "http://127.0.0.1:8080/callback",
+             allow_public_loopback_redirect_uri: true
+           )
+
+    refute RedirectURI.valid_for_authorization?(
              "http://127.0.0.1:49215/callback",
              "http://localhost/callback",
              allow_public_loopback_redirect_uri: true
            )
 
     refute RedirectURI.valid_for_authorization?(
+             "http://127.0.0.1:49215/callback?next=evil",
+             "http://127.0.0.1/callback",
+             allow_public_loopback_redirect_uri: true
+           )
+
+    refute RedirectURI.valid_for_authorization?(
              "http://127.0.0.1:49215/other-path",
-             "http://localhost/callback",
+             "http://127.0.0.1/callback",
              allow_public_loopback_redirect_uri: true
            )
 
     refute RedirectURI.valid_for_authorization?(
              "http://user:pw@127.0.0.1:49215/callback",
-             "http://localhost/callback",
+             "http://127.0.0.1/callback",
              allow_public_loopback_redirect_uri: true
            )
 
     refute RedirectURI.valid_for_authorization?(
              "http://user:pw@127.0.0.1:49215/anything",
              "http://localhost",
+             allow_public_loopback_redirect_uri: true
+           )
+
+    refute RedirectURI.valid_for_authorization?(
+             "http://localhost:5555.evil.example/",
+             "http://localhost",
+             allow_public_loopback_redirect_uri: true
+           )
+
+    refute RedirectURI.valid_for_authorization?(
+             "http://[::1]evil.example/",
+             "http://[::1]",
              allow_public_loopback_redirect_uri: true
            )
   end

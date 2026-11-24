@@ -52,17 +52,14 @@ defmodule ExOauth2Provider.Token.AuthorizationCode do
     result =
       repo.transaction(fn ->
         with {:ok, revoked_grant} <- revoke_grant(access_grant, config),
-             {:ok, resource_owner} <- lock_resource_owner(revoked_grant, config),
-             {:ok, access_token} <-
-               maybe_create_access_token(resource_owner, revoked_grant, token_params, config) do
-          access_token
-        else
-          {:error, error} -> repo.rollback(error)
+             {:ok, resource_owner} <- lock_resource_owner(revoked_grant, config) do
+          maybe_create_access_token(resource_owner, revoked_grant, token_params, config)
         end
       end)
 
     case result do
-      {:ok, access_token} -> {:ok, Map.put(params, :access_token, access_token)}
+      {:ok, {:ok, access_token}} -> {:ok, Map.put(params, :access_token, access_token)}
+      {:ok, {:error, error}} -> Error.add_error({:ok, params}, error)
       {:error, error} -> Error.add_error({:ok, params}, error)
     end
   end

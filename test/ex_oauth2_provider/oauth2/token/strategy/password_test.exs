@@ -47,6 +47,16 @@ defmodule ExOauth2Provider.Token.Strategy.PasswordTest do
              {:error, @invalid_client_error, :unprocessable_entity}
   end
 
+  test "#grant/2 authenticates client before invoking password_auth callback" do
+    request =
+      Map.merge(@valid_request, %{"client_secret" => "invalid", "password" => "wrong-password"})
+
+    assert Password.grant(request,
+             otp_app: :ex_oauth2_provider,
+             password_auth: {__MODULE__, :unexpected_password_auth}
+           ) == {:error, @invalid_client_error, :unprocessable_entity}
+  end
+
   test "#grant/2 error when invalid secret" do
     request_invalid_client = Map.merge(@valid_request, %{"client_secret" => "invalid"})
 
@@ -156,5 +166,9 @@ defmodule ExOauth2Provider.Token.Strategy.PasswordTest do
 
   def access_token_response_body_handler(body, access_token) do
     Map.merge(body, %{custom_attr: access_token.inserted_at})
+  end
+
+  def unexpected_password_auth(_username, _password) do
+    flunk("password_auth must not be called before client authentication succeeds")
   end
 end

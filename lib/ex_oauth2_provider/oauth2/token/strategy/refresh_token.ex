@@ -78,17 +78,14 @@ defmodule ExOauth2Provider.Token.RefreshToken do
         token_params = token_params(refresh_token, config)
 
         with {:ok, current_token} <- consume_or_lock_refresh_token(refresh_token, config),
-             {:ok, resource_owner} <- lock_resource_owner(current_token, config),
-             {:ok, access_token} <-
-               AccessTokens.create_token(resource_owner, token_params, config) do
-          access_token
-        else
-          {:error, error} -> repo.rollback(error)
+             {:ok, resource_owner} <- lock_resource_owner(current_token, config) do
+          AccessTokens.create_token(resource_owner, token_params, config)
         end
       end)
 
     case result do
-      {:ok, access_token} -> {:ok, Map.merge(params, %{access_token: access_token})}
+      {:ok, {:ok, access_token}} -> {:ok, Map.merge(params, %{access_token: access_token})}
+      {:ok, {:error, error}} -> Error.add_error({:ok, params}, error)
       {:error, error} -> Error.add_error({:ok, params}, error)
     end
   end

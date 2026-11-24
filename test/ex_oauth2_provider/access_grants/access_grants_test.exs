@@ -107,4 +107,37 @@ defmodule ExOauth2Provider.AccessGrantsTest do
       assert grant.scopes == "write"
     end
   end
+
+  test "revoke_once/2 respects loaded struct schema prefix", %{
+    user: user,
+    application: application
+  } do
+    {:ok, public_grant} =
+      AccessGrants.create_grant(user, application, @valid_attrs, otp_app: :ex_oauth2_provider)
+
+    Dummy.Repo.query!("CREATE SCHEMA tenant_revoke_test")
+
+    Dummy.Repo.query!(
+      "CREATE TABLE tenant_revoke_test.oauth_access_grants (LIKE public.oauth_access_grants INCLUDING ALL)"
+    )
+
+    Dummy.Repo.query!(
+      "INSERT INTO tenant_revoke_test.oauth_access_grants SELECT * FROM public.oauth_access_grants WHERE id = $1",
+      [public_grant.id]
+    )
+
+    tenant_grant =
+      Dummy.Repo.get!(OauthAccessGrant, public_grant.id, prefix: "tenant_revoke_test")
+
+    assert {:ok, revoked} = AccessGrants.revoke_once(tenant_grant, otp_app: :ex_oauth2_provider)
+    assert revoked.revoked_at
+
+    reloaded_public = Dummy.Repo.get!(OauthAccessGrant, public_grant.id)
+
+    reloaded_tenant =
+      Dummy.Repo.get!(OauthAccessGrant, public_grant.id, prefix: "tenant_revoke_test")
+
+    assert is_nil(reloaded_public.revoked_at)
+    refute is_nil(reloaded_tenant.revoked_at)
+  end
 end

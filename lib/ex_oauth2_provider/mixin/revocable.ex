@@ -25,9 +25,12 @@ defmodule ExOauth2Provider.Mixin.Revocable do
         [revoked_at: revoked_at]
       end
 
-    query = from(r in struct, where: r.id == ^id and is_nil(r.revoked_at))
+    source = Ecto.get_meta(data, :source)
+    prefix = Ecto.get_meta(data, :prefix)
+    query = from(r in {source, struct}, where: r.id == ^id and is_nil(r.revoked_at))
+    opts = if prefix, do: [prefix: prefix], else: []
 
-    case Config.repo(config).update_all(query, set: updates) do
+    case Config.repo(config).update_all(query, [set: updates], opts) do
       {1, _} -> {:ok, %{data | revoked_at: revoked_at}}
       {0, _} -> {:error, :already_revoked}
     end
