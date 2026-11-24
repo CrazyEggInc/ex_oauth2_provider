@@ -81,6 +81,41 @@ defmodule ExOauth2Provider.AuthorizationTest do
               "https://example.com/path?error=unsupported_response_type&error_description=The+authorization+server+does+not+support+this+response+type.&param=1&state=40612"}
   end
 
+  test "#preauthorize/3 does not redirect to unregistered redirect_uri when missing response_type",
+       %{
+         resource_owner: resource_owner,
+         application: application
+       } do
+    QueryHelpers.change!(application, redirect_uri: "https://example.com/path")
+
+    params =
+      @valid_request
+      |> Map.delete("response_type")
+      |> Map.merge(%{"redirect_uri" => "https://evil.example/phish", "state" => "abc"})
+
+    assert Authorization.preauthorize(resource_owner, params, otp_app: :ex_oauth2_provider) ==
+             {:error, @invalid_request, :bad_request}
+  end
+
+  test "#preauthorize/3 does not redirect to unregistered redirect_uri when unsupported response_type",
+       %{
+         resource_owner: resource_owner,
+         application: application
+       } do
+    QueryHelpers.change!(application, redirect_uri: "https://example.com/path")
+
+    params =
+      @valid_request
+      |> Map.merge(%{
+        "response_type" => "token",
+        "redirect_uri" => "https://evil.example/phish",
+        "state" => "abc"
+      })
+
+    assert Authorization.preauthorize(resource_owner, params, otp_app: :ex_oauth2_provider) ==
+             {:error, @invalid_response_type, :unprocessable_entity}
+  end
+
   test "#authorize/3 error when missing response_type", %{resource_owner: resource_owner} do
     params = Map.delete(@valid_request, "response_type")
 

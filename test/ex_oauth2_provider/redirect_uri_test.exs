@@ -47,6 +47,54 @@ defmodule ExOauth2Provider.RedirectURITest do
     assert RedirectURI.validate(uri, []) == {:error, "Redirect URI must be an HTTPS/SSL URI"}
   end
 
+  test "validate/2 rejects dangerous schemes" do
+    for uri <- [
+          "javascript:alert(1)",
+          "JAVASCRIPT:alert(1)",
+          "data:text/html,<script>alert(1)</script>",
+          "vbscript:msgbox(1)",
+          "file:///etc/passwd",
+          "blob:https://example.com/123"
+        ] do
+      assert {:error, _} = RedirectURI.validate(uri, [])
+    end
+  end
+
+  test "validate/2 rejects http/https uris without a host" do
+    for uri <- ["https://", "https:/nohost", "http://", "http:/nohost"] do
+      assert {:error, _} = RedirectURI.validate(uri, force_ssl_in_redirect_uri: false)
+    end
+  end
+
+  test "validate/2 rejects uris with userinfo" do
+    assert {:error, _} = RedirectURI.validate("https://user:pass@app.co/cb", [])
+
+    assert {:error, _} =
+             RedirectURI.validate("http://user:pass@127.0.0.1:8080/cb",
+               allow_public_loopback_redirect_uri: true
+             )
+  end
+
+  test "validate/2 rejects uris with embedded whitespace or control characters" do
+    assert {:error, _} = RedirectURI.validate("https://app.co/cb\r\nX-Test: 1", [])
+    assert {:error, _} = RedirectURI.validate("https://app.co/cb\n", [])
+    assert {:error, _} = RedirectURI.validate("https://app.co/a b", [])
+    assert {:error, _} = RedirectURI.validate("https://app.co/a\u00A0b", [])
+    assert {:error, _} = RedirectURI.validate("https://app.co/a\u2028b", [])
+  end
+
+  test "validate/2 rejects malformed authority uris" do
+    assert {:error, _} =
+             RedirectURI.validate("http://localhost:5555.evil.example/",
+               allow_public_loopback_redirect_uri: true
+             )
+
+    assert {:error, _} =
+             RedirectURI.validate("http://[::1]evil.example/",
+               allow_public_loopback_redirect_uri: true
+             )
+  end
+
   test "validate/2 accepts absolute uri" do
     uri = "https://app.co"
     assert RedirectURI.validate(uri, []) == {:ok, uri}
@@ -148,6 +196,62 @@ defmodule ExOauth2Provider.RedirectURITest do
              "http://127.0.0.1:49215/callback/random-path",
              "http://127.0.0.1",
              []
+           )
+  end
+
+  test "valid_for_authorization? enforces registered host, path, and query for path-specific loopback redirects" do
+    assert RedirectURI.valid_for_authorization?(
+             "http://127.0.0.1:49215/callback",
+             "http://127.0.0.1/callback",
+             allow_public_loopback_redirect_uri: true
+           )
+
+    assert RedirectURI.valid_for_authorization?(
+             "http://127.0.0.1:49215/callback",
+             "http://127.0.0.1:8080/callback",
+             allow_public_loopback_redirect_uri: true
+           )
+
+    refute RedirectURI.valid_for_authorization?(
+             "http://127.0.0.1:49215/callback",
+             "http://localhost/callback",
+             allow_public_loopback_redirect_uri: true
+           )
+
+    refute RedirectURI.valid_for_authorization?(
+             "http://127.0.0.1:49215/callback?next=evil",
+             "http://127.0.0.1/callback",
+             allow_public_loopback_redirect_uri: true
+           )
+
+    refute RedirectURI.valid_for_authorization?(
+             "http://127.0.0.1:49215/other-path",
+             "http://127.0.0.1/callback",
+             allow_public_loopback_redirect_uri: true
+           )
+
+    refute RedirectURI.valid_for_authorization?(
+             "http://user:pw@127.0.0.1:49215/callback",
+             "http://127.0.0.1/callback",
+             allow_public_loopback_redirect_uri: true
+           )
+
+    refute RedirectURI.valid_for_authorization?(
+             "http://user:pw@127.0.0.1:49215/anything",
+             "http://localhost",
+             allow_public_loopback_redirect_uri: true
+           )
+
+    refute RedirectURI.valid_for_authorization?(
+             "http://localhost:5555.evil.example/",
+             "http://localhost",
+             allow_public_loopback_redirect_uri: true
+           )
+
+    refute RedirectURI.valid_for_authorization?(
+             "http://[::1]evil.example/",
+             "http://[::1]",
+             allow_public_loopback_redirect_uri: true
            )
   end
 

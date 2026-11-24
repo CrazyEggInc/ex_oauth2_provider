@@ -45,6 +45,103 @@ defmodule ExOauth2Provider.Authorization.CodeTest do
              {:error, @invalid_request, :bad_request}
   end
 
+  test "#preauthorize/3 does not redirect to unregistered redirect_uri when no resource owner", %{
+    application: application
+  } do
+    QueryHelpers.change!(application, redirect_uri: "https://example.com/path")
+    request = Map.put(@valid_request, "redirect_uri", "https://evil.example/phish")
+
+    assert Authorization.preauthorize(nil, request, otp_app: :ex_oauth2_provider) ==
+             {:error, @invalid_request, :bad_request}
+  end
+
+  test "#authorize/3 rejects unregistered native oob redirect_uri", %{
+    resource_owner: resource_owner,
+    application: application
+  } do
+    QueryHelpers.change!(application, redirect_uri: "https://example.com/callback")
+
+    request = Map.put(@valid_request, "redirect_uri", "urn:ietf:wg:oauth:2.0:oob")
+
+    assert Authorization.authorize(resource_owner, request, otp_app: :ex_oauth2_provider) ==
+             {:error, @invalid_redirect_uri, :unprocessable_entity}
+  end
+
+  describe "PKCE validation" do
+    @valid_verifier String.duplicate("a", 43)
+    @valid_challenge Base.url_encode64(:crypto.hash(:sha256, @valid_verifier), padding: false)
+
+    test "#authorize/3 requires valid S256 PKCE for public clients", %{
+      resource_owner: resource_owner,
+      application: application
+    } do
+      QueryHelpers.change!(application,
+        client_type: "public",
+        secret: "",
+        redirect_uri: "https://example.com/callback"
+      )
+
+      base = Map.put(@valid_request, "redirect_uri", "https://example.com/callback")
+
+      # Missing PKCE
+      assert {:redirect, uri} =
+               Authorization.authorize(resource_owner, base, otp_app: :ex_oauth2_provider)
+
+      assert uri =~ "error=invalid_request"
+
+      # Malformed challenge (too short / invalid chars)
+      bad_challenge =
+        Map.merge(base, %{"code_challenge" => "x", "code_challenge_method" => "S256"})
+
+      assert {:redirect, uri} =
+               Authorization.authorize(resource_owner, bad_challenge,
+                 otp_app: :ex_oauth2_provider
+               )
+
+      assert uri =~ "error=invalid_request"
+
+      # Valid S256 PKCE succeeds
+      good_pkce =
+        Map.merge(base, %{
+          "code_challenge" => @valid_challenge,
+          "code_challenge_method" => "S256"
+        })
+
+      assert {:redirect, uri} =
+               Authorization.authorize(resource_owner, good_pkce, otp_app: :ex_oauth2_provider)
+
+      assert uri =~ "code="
+    end
+
+    test "#authorize/3 rejects code_challenge_method without code_challenge for confidential client",
+         %{
+           resource_owner: resource_owner
+         } do
+      request = Map.put(@valid_request, "code_challenge_method", "plain")
+
+      assert Authorization.authorize(resource_owner, request, otp_app: :ex_oauth2_provider) ==
+               {:error, @invalid_request, :bad_request}
+
+      request_s256 = Map.put(@valid_request, "code_challenge_method", "S256")
+
+      assert Authorization.authorize(resource_owner, request_s256, otp_app: :ex_oauth2_provider) ==
+               {:error, @invalid_request, :bad_request}
+    end
+
+    test "#authorize/3 rejects malformed code_challenge for confidential client", %{
+      resource_owner: resource_owner
+    } do
+      request =
+        Map.merge(@valid_request, %{
+          "code_challenge" => "too-short",
+          "code_challenge_method" => "S256"
+        })
+
+      assert Authorization.authorize(resource_owner, request, otp_app: :ex_oauth2_provider) ==
+               {:error, @invalid_request, :bad_request}
+    end
+  end
+
   test "#preauthorize/3 error when no client_id", %{resource_owner: resource_owner} do
     request = Map.delete(@valid_request, "client_id")
 
@@ -284,5 +381,32 @@ defmodule ExOauth2Provider.Authorization.CodeTest do
     assert Authorization.deny(resource_owner, request, otp_app: :ex_oauth2_provider) ==
              {:redirect,
               "https://example.com/path?error=access_denied&error_description=The+resource+owner+or+authorization+server+denied+the+request.&param=1&state=40612"}
+  end
+
+  test "#authorize/3 rejects non-string parameters without raising", %{
+    resource_owner: resource_owner
+  } do
+    for {field, value} <- [
+          {"client_id", ["x"]},
+          {"redirect_uri", ["https://example.com/cb"]},
+          {"scope", ["read"]},
+          {"state", ["abc"]},
+          {"response_type", ["code"]}
+        ] do
+      request = Map.put(@valid_request, field, value)
+
+      assert {:error, %{error: _}, _status} =
+               Authorization.authorize(resource_owner, request, otp_app: :ex_oauth2_provider)
+    end
+  end
+
+  test "Error.add_error/2 maps changeset errors to invalid_request instead of raising" do
+    changeset =
+      %OauthAccessGrant{}
+      |> Ecto.Changeset.change()
+      |> Ecto.Changeset.add_error(:scopes, "is invalid")
+
+    assert {:error, %{error: %{error: :invalid_request}, error_http_status: :bad_request}} =
+             ExOauth2Provider.Utils.Error.add_error({:ok, %{}}, changeset)
   end
 end

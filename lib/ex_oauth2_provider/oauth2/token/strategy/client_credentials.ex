@@ -27,9 +27,22 @@ defmodule ExOauth2Provider.Token.ClientCredentials do
   def grant(%{"grant_type" => "client_credentials"} = request, config \\ []) do
     {:ok, %{request: request}}
     |> Utils.load_client(config)
+    |> validate_confidential_client()
     |> issue_access_token_by_creds(config)
     |> Response.response(config)
   end
+
+  defp validate_confidential_client({:error, params}), do: {:error, params}
+
+  defp validate_confidential_client(
+         {:ok, %{client: %{client_type: "confidential", secret: secret}} = params}
+       )
+       when is_binary(secret) and byte_size(secret) > 0 do
+    {:ok, params}
+  end
+
+  defp validate_confidential_client({:ok, params}),
+    do: Error.add_error({:ok, params}, Error.invalid_client())
 
   defp issue_access_token_by_creds({:error, params}, _config), do: {:error, params}
 
@@ -37,23 +50,27 @@ defmodule ExOauth2Provider.Token.ClientCredentials do
          {:ok, %{client: application, request: request} = params},
          config
        ) do
-    scopes = request["scope"]
+    case request["scope"] do
+      scopes when is_nil(scopes) or is_binary(scopes) ->
+        token_params = %{
+          # client_credentials MUST NOT use refresh tokens
+          use_refresh_token: false,
+          scopes: scopes
+        }
 
-    token_params = %{
-      # client_credentials MUST NOT use refresh tokens
-      use_refresh_token: false,
-      scopes: scopes
-    }
+        application
+        |> AccessTokens.get_application_token_for(scopes, config)
+        |> case do
+          nil -> AccessTokens.create_application_token(application, token_params, config)
+          access_token -> {:ok, access_token}
+        end
+        |> case do
+          {:ok, access_token} -> {:ok, Map.merge(params, %{access_token: access_token})}
+          {:error, error} -> Error.add_error({:ok, params}, error)
+        end
 
-    application
-    |> AccessTokens.get_application_token_for(scopes, config)
-    |> case do
-      nil -> AccessTokens.create_application_token(application, token_params, config)
-      access_token -> {:ok, access_token}
-    end
-    |> case do
-      {:ok, access_token} -> {:ok, Map.merge(params, %{access_token: access_token})}
-      {:error, error} -> Error.add_error({:ok, params}, error)
+      _ ->
+        Error.add_error({:ok, params}, Error.invalid_request())
     end
   end
 end

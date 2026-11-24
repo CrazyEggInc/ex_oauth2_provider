@@ -8,6 +8,7 @@ defmodule ExOauth2Provider.AccessGrants do
 
   defdelegate revoke!(data, config \\ []), to: Revocable
   defdelegate revoke(data, config \\ []), to: Revocable
+  defdelegate revoke_once(data, config \\ []), to: Revocable
 
   @doc """
   Gets a single access grant registered with an application.
@@ -22,13 +23,17 @@ defmodule ExOauth2Provider.AccessGrants do
 
   """
   @spec get_active_grant_for(Application.t(), binary(), keyword()) :: AccessGrant.t() | nil
-  def get_active_grant_for(application, token, config \\ []) do
+  def get_active_grant_for(application, token, config \\ [])
+
+  def get_active_grant_for(application, token, config) when is_binary(token) do
     config
     |> Config.access_grant()
     |> Config.repo(config).get_by(application_id: application.id, token: token)
     |> Expirable.filter_expired()
     |> Revocable.filter_revoked()
   end
+
+  def get_active_grant_for(_application, _token, _config), do: nil
 
   @doc """
   Creates an access grant.

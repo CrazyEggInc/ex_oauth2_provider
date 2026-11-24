@@ -26,7 +26,16 @@ defmodule ExOauth2Provider.Applications.ApplicationTest do
       assert changeset.errors[:secret] == {"can't be blank", []}
 
       changeset = Application.changeset(application, %{secret: ""})
-      assert is_nil(changeset.errors[:secret])
+      assert changeset.errors[:secret] == {"can't be blank", []}
+
+      public_changeset = Application.changeset(application, %{client_type: "public", secret: ""})
+      assert is_nil(public_changeset.errors[:secret])
+      assert Ecto.Changeset.get_field(public_changeset, :secret) == ""
+
+      # Switching public client back to confidential without a non-empty secret fails
+      public_app = %{application | client_type: "public", secret: ""}
+      switch_changeset = Application.changeset(public_app, %{client_type: "confidential"})
+      assert switch_changeset.errors[:secret] == {"can't be blank", []}
     end
 
     test "requires valid redirect uri", %{application: application} do

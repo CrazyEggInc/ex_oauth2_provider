@@ -34,7 +34,7 @@ defmodule ExOauth2Provider.Token do
     end
   end
 
-  defp validate_grant_type(%{"grant_type" => type}, config) do
+  defp validate_grant_type(%{"grant_type" => type}, config) when is_binary(type) do
     type
     |> fetch_module(config)
     |> case do

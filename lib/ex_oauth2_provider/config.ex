@@ -48,9 +48,7 @@ defmodule ExOauth2Provider.Config do
         context = Macro.camelize("#{namespace}_#{name}s")
         module = Macro.camelize("#{namespace}_#{name}")
 
-        config
-        |> get(name)
-        |> Kernel.||(app_module(config, context, module))
+        app_module(config, context, module)
 
       module ->
         module

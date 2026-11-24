@@ -2,11 +2,16 @@ defmodule ExOauth2Provider.Utils.Error do
   @moduledoc false
 
   @doc false
-  @spec add_error({:ok, map()} | {:error, map()}, {:error, map(), atom()}) :: {:error, map()}
+  @spec add_error({:ok, map()} | {:error, map()}, {:error, map(), atom()} | Ecto.Changeset.t()) ::
+          {:error, map()}
   def add_error({:error, params}, _), do: {:error, params}
 
   def add_error({:ok, params}, {:error, error, http_status}) do
     {:error, Map.merge(params, %{error: error, error_http_status: http_status})}
+  end
+
+  def add_error({:ok, params}, %Ecto.Changeset{}) do
+    add_error({:ok, params}, invalid_request())
   end
 
   @spec server_error() :: {:error, map(), atom()}

@@ -12,6 +12,7 @@ defmodule ExOauth2Provider.AccessTokens do
 
   defdelegate revoke!(data, config \\ []), to: Revocable
   defdelegate revoke(data, config \\ []), to: Revocable
+  defdelegate revoke_once(data, config \\ []), to: Revocable
   defdelegate is_expired?(token), to: Expirable
   defdelegate is_revoked?(token), to: Revocable
 
@@ -28,11 +29,15 @@ defmodule ExOauth2Provider.AccessTokens do
 
   """
   @spec get_by_token(binary(), keyword()) :: AccessToken.t() | nil
-  def get_by_token(token, config \\ []) do
+  def get_by_token(token, config \\ [])
+
+  def get_by_token(token, config) when is_binary(token) do
     config
     |> Config.access_token()
     |> Config.repo(config).get_by(token: token)
   end
+
+  def get_by_token(_token, _config), do: nil
 
   @doc """
   Gets an access token by the refresh token.
@@ -46,11 +51,15 @@ defmodule ExOauth2Provider.AccessTokens do
       nil
   """
   @spec get_by_refresh_token(binary(), keyword()) :: AccessToken.t() | nil
-  def get_by_refresh_token(refresh_token, config \\ []) do
+  def get_by_refresh_token(refresh_token, config \\ [])
+
+  def get_by_refresh_token(refresh_token, config) when is_binary(refresh_token) do
     config
     |> Config.access_token()
     |> Config.repo(config).get_by(refresh_token: refresh_token)
   end
+
+  def get_by_refresh_token(_refresh_token, _config), do: nil
 
   @doc """
   Gets an access token by the refresh token belonging to an application.
@@ -64,11 +73,16 @@ defmodule ExOauth2Provider.AccessTokens do
       nil
   """
   @spec get_by_refresh_token_for(Application.t(), binary(), keyword()) :: AccessToken.t() | nil
-  def get_by_refresh_token_for(application, refresh_token, config \\ []) do
+  def get_by_refresh_token_for(application, refresh_token, config \\ [])
+
+  def get_by_refresh_token_for(application, refresh_token, config)
+      when is_binary(refresh_token) do
     config
     |> Config.access_token()
     |> Config.repo(config).get_by(application_id: application.id, refresh_token: refresh_token)
   end
+
+  def get_by_refresh_token_for(_application, _refresh_token, _config), do: nil
 
   @doc """
   Gets the most recent, acccessible, matching access token for a resource owner.

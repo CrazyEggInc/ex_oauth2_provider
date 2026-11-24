@@ -31,13 +31,26 @@ defmodule ExOauth2Provider.Token.Password do
   def grant(%{"grant_type" => "password"} = request, config \\ []) do
     {:ok, %{request: request}}
     |> get_password_auth_method(config)
-    |> load_resource_owner()
     |> Utils.load_client(config)
+    |> validate_confidential_client()
+    |> load_resource_owner()
     |> set_defaults()
     |> validate_scopes(config)
     |> issue_access_token(config)
     |> Response.response(config)
   end
+
+  defp validate_confidential_client({:error, params}), do: {:error, params}
+
+  defp validate_confidential_client(
+         {:ok, %{client: %{client_type: "confidential", secret: secret}} = params}
+       )
+       when is_binary(secret) and byte_size(secret) > 0 do
+    {:ok, params}
+  end
+
+  defp validate_confidential_client({:ok, params}),
+    do: Error.add_error({:ok, params}, Error.invalid_client())
 
   defp get_password_auth_method({:ok, params}, config) do
     case Config.password_auth(config) do
@@ -54,7 +67,8 @@ defmodule ExOauth2Provider.Token.Password do
             password_auth: {module, method},
             request: %{"username" => username, "password" => password}
           } = params}
-       ) do
+       )
+       when is_binary(username) and is_binary(password) do
     case apply(module, method, [username, password]) do
       {:ok, resource_owner} ->
         {:ok, Map.put(params, :resource_owner, resource_owner)}
@@ -109,7 +123,8 @@ defmodule ExOauth2Provider.Token.Password do
 
   defp validate_scopes({:error, params}, _config), do: {:error, params}
 
-  defp validate_scopes({:ok, %{request: %{"scope" => scopes}, client: client} = params}, config) do
+  defp validate_scopes({:ok, %{request: %{"scope" => scopes}, client: client} = params}, config)
+       when is_nil(scopes) or is_binary(scopes) do
     scopes = Scopes.to_list(scopes)
 
     server_scopes =
@@ -122,4 +137,7 @@ defmodule ExOauth2Provider.Token.Password do
       false -> Error.add_error({:ok, params}, Error.invalid_scopes())
     end
   end
+
+  defp validate_scopes({:ok, params}, _config),
+    do: Error.add_error({:ok, params}, Error.invalid_request())
 end

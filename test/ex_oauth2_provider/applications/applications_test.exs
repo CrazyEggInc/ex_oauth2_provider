@@ -137,12 +137,22 @@ defmodule ExOauth2Provider.ApplicationsTest do
       assert application.secret != application2.secret
     end
 
-    test "permits empty string secret", %{user: user} do
+    test "rejects empty string secret for confidential client", %{user: user} do
       attrs = Map.merge(@valid_attrs, %{secret: ""})
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Applications.create_application(user, attrs, otp_app: :ex_oauth2_provider)
+
+      assert changeset.errors[:secret] == {"can't be blank", []}
+    end
+
+    test "permits empty string secret for public client", %{user: user} do
+      attrs = Map.merge(@valid_attrs, %{client_type: "public", secret: ""})
 
       assert {:ok, application} =
                Applications.create_application(user, attrs, otp_app: :ex_oauth2_provider)
 
+      assert application.client_type == "public"
       assert application.secret == ""
     end
 

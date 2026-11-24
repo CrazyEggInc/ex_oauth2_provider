@@ -38,7 +38,7 @@ defmodule ExOauth2Provider.Plug.VerifyHeader do
 
   defp maybe_set_realm_option(realm, opts) do
     realm = Regex.escape(realm)
-    {:ok, realm_regex} = Regex.compile("#{realm}\:?\s+(.*)$", "i")
+    {:ok, realm_regex} = Regex.compile("^#{realm}:?\\s+(.*)$", "i")
 
     Keyword.put(opts, :realm_regex, realm_regex)
   end

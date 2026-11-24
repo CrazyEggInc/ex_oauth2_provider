@@ -205,6 +205,7 @@ defmodule ExOauth2Provider.Authorization.Code do
     {:ok, params}
     |> validate_resource_owner()
     |> validate_redirect_uri(config)
+    |> validate_state()
     |> validate_scopes(config)
     |> validate_pkce()
   end
@@ -216,9 +217,19 @@ defmodule ExOauth2Provider.Authorization.Code do
     end
   end
 
+  defp validate_state({:error, params}), do: {:error, params}
+
+  defp validate_state({:ok, %{request: request} = params}) do
+    case Map.get(request, "state") do
+      state when is_nil(state) or is_binary(state) or is_integer(state) -> {:ok, params}
+      _ -> Error.add_error({:ok, params}, Error.invalid_request())
+    end
+  end
+
   defp validate_scopes({:error, params}, _config), do: {:error, params}
 
-  defp validate_scopes({:ok, %{request: %{"scope" => scopes}, client: client} = params}, config) do
+  defp validate_scopes({:ok, %{request: %{"scope" => scopes}, client: client} = params}, config)
+       when is_nil(scopes) or is_binary(scopes) do
     scopes = Scopes.to_list(scopes)
 
     server_scopes =
@@ -232,24 +243,29 @@ defmodule ExOauth2Provider.Authorization.Code do
     end
   end
 
+  defp validate_scopes({:ok, params}, _config),
+    do: Error.add_error({:ok, params}, Error.invalid_request())
+
+  @s256_code_challenge_regex ~r/\A[A-Za-z0-9\-_]{43}\z/
+
   defp validate_redirect_uri({:error, params}, _config), do: {:error, params}
 
   defp validate_redirect_uri(
          {:ok, %{request: %{"redirect_uri" => redirect_uri}, client: client} = params},
          config
-       ) do
+       )
+       when is_binary(redirect_uri) do
     redirect_uri_config =
       Keyword.put(config, :allow_public_loopback_redirect_uri, client.client_type == "public")
 
-    cond do
-      RedirectURI.native_redirect_uri?(redirect_uri, config) ->
-        {:ok, params}
-
-      RedirectURI.valid_for_authorization?(redirect_uri, client.redirect_uri, redirect_uri_config) ->
-        {:ok, params}
-
-      true ->
-        Error.add_error({:ok, params}, Error.invalid_redirect_uri())
+    if RedirectURI.valid_for_authorization?(
+         redirect_uri,
+         client.redirect_uri,
+         redirect_uri_config
+       ) do
+      {:ok, params}
+    else
+      Error.add_error({:ok, params}, Error.invalid_redirect_uri())
     end
   end
 
@@ -259,22 +275,35 @@ defmodule ExOauth2Provider.Authorization.Code do
   defp validate_pkce({:error, params}), do: {:error, params}
 
   defp validate_pkce({:ok, %{client: %{client_type: "public"}, request: request} = params}) do
-    case {Map.get(request, "code_challenge"), Map.get(request, "code_challenge_method")} do
-      {code_challenge, "S256"} when is_binary(code_challenge) and byte_size(code_challenge) > 0 ->
+    if valid_s256_pkce?(
+         Map.get(request, "code_challenge"),
+         Map.get(request, "code_challenge_method")
+       ) do
+      {:ok, params}
+    else
+      Error.add_error({:ok, params}, Error.invalid_request())
+    end
+  end
+
+  defp validate_pkce({:ok, %{request: request} = params}) do
+    challenge = Map.get(request, "code_challenge")
+    method = Map.get(request, "code_challenge_method")
+
+    cond do
+      is_nil(challenge) and is_nil(method) ->
         {:ok, params}
 
-      _ ->
+      valid_s256_pkce?(challenge, method) ->
+        {:ok, params}
+
+      true ->
         Error.add_error({:ok, params}, Error.invalid_request())
     end
   end
 
-  defp validate_pkce({:ok, %{request: %{"code_challenge" => code_challenge} = request} = params})
-       when is_binary(code_challenge) and byte_size(code_challenge) > 0 do
-    case Map.get(request, "code_challenge_method") do
-      "S256" -> {:ok, params}
-      _ -> Error.add_error({:ok, params}, Error.invalid_request())
-    end
+  defp valid_s256_pkce?(code_challenge, "S256") when is_binary(code_challenge) do
+    Regex.match?(@s256_code_challenge_regex, code_challenge)
   end
 
-  defp validate_pkce({:ok, params}), do: {:ok, params}
+  defp valid_s256_pkce?(_code_challenge, _method), do: false
 end

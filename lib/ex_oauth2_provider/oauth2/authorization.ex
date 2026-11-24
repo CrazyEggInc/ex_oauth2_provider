@@ -77,7 +77,7 @@ defmodule ExOauth2Provider.Authorization do
     |> Response.error_response(config)
   end
 
-  defp validate_response_type(%{"response_type" => type}, config) do
+  defp validate_response_type(%{"response_type" => type}, config) when is_binary(type) do
     type
     |> response_type_to_grant_flow()
     |> fetch_module(config)
