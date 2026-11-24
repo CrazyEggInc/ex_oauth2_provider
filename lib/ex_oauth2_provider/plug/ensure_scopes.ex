@@ -23,8 +23,6 @@ defmodule ExOauth2Provider.Plug.EnsureScopes do
      will provide the default behavior.
   """
 
-  require Logger
-
   alias Plug.Conn
   alias ExOauth2Provider.{Plug, Scopes}
 

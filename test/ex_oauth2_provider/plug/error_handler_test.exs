@@ -2,7 +2,8 @@ defmodule ExOauth2Provider.Plug.ErrorHandlerTest do
   @moduledoc false
 
   use ExUnit.Case, async: true
-  use Plug.Test
+  import Plug.Test
+  import Plug.Conn
 
   alias ExOauth2Provider.Plug.ErrorHandler
 
