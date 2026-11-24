@@ -113,6 +113,8 @@ defmodule ExOauth2Provider.Token.AuthorizationCode do
   defp validate_redirect_uri({:ok, params}),
     do: Error.add_error({:ok, params}, Error.invalid_grant())
 
+  @code_verifier_regex ~r/\A[A-Za-z0-9\-._~]{43,128}\z/
+
   defp validate_pkce({:error, params}), do: {:error, params}
 
   defp validate_pkce(
@@ -122,7 +124,12 @@ defmodule ExOauth2Provider.Token.AuthorizationCode do
     Error.add_error({:ok, params}, Error.invalid_grant())
   end
 
-  defp validate_pkce({:ok, %{access_grant: %{code_challenge: nil}} = params}), do: {:ok, params}
+  defp validate_pkce({:ok, %{access_grant: %{code_challenge: nil}, request: request} = params}) do
+    case Map.get(request, "code_verifier") do
+      nil -> {:ok, params}
+      _ -> Error.add_error({:ok, params}, Error.invalid_grant())
+    end
+  end
 
   defp validate_pkce(
          {:ok,
@@ -131,12 +138,18 @@ defmodule ExOauth2Provider.Token.AuthorizationCode do
             access_grant: %{code_challenge: code_challenge, code_challenge_method: "S256"}
           } = params}
        )
-       when is_binary(code_verifier) and byte_size(code_verifier) > 0 do
-    hashed_verifier = Base.url_encode64(:crypto.hash(:sha256, code_verifier), padding: false)
+       when is_binary(code_verifier) and is_binary(code_challenge) and
+              byte_size(code_challenge) > 0 do
+    if Regex.match?(@code_verifier_regex, code_verifier) do
+      hashed_verifier = Base.url_encode64(:crypto.hash(:sha256, code_verifier), padding: false)
 
-    case hashed_verifier == code_challenge do
-      true -> {:ok, params}
-      false -> Error.add_error({:ok, params}, Error.invalid_grant())
+      if Plug.Crypto.secure_compare(hashed_verifier, code_challenge) do
+        {:ok, params}
+      else
+        Error.add_error({:ok, params}, Error.invalid_grant())
+      end
+    else
+      Error.add_error({:ok, params}, Error.invalid_grant())
     end
   end
 

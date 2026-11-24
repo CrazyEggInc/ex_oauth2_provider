@@ -84,11 +84,29 @@ defmodule ExOauth2Provider.Authorization.Utils.Response do
   defp can_redirect?(%{error: %{error: :invalid_redirect_uri}}, _config), do: false
   defp can_redirect?(%{error: %{error: :invalid_client}}, _config), do: false
 
+  defp can_redirect?(%{error: %{error: _}, resource_owner: resource_owner}, _config)
+       when not is_map(resource_owner),
+       do: false
+
   defp can_redirect?(
-         %{error: %{error: _error}, request: %{"redirect_uri" => redirect_uri}},
+         %{
+           error: %{error: _error},
+           client: %{redirect_uri: client_redirect_uri} = client,
+           request: %{"redirect_uri" => redirect_uri}
+         },
          config
-       ),
-       do: !RedirectURI.native_redirect_uri?(redirect_uri, config)
+       )
+       when is_binary(redirect_uri) and is_binary(client_redirect_uri) do
+    redirect_uri_config =
+      Keyword.put(
+        config,
+        :allow_public_loopback_redirect_uri,
+        Map.get(client, :client_type) == "public"
+      )
+
+    not RedirectURI.native_redirect_uri?(redirect_uri, config) and
+      RedirectURI.valid_for_authorization?(redirect_uri, client_redirect_uri, redirect_uri_config)
+  end
 
   defp can_redirect?(%{error: _}, _config), do: false
   defp can_redirect?(%{request: %{}}, _config), do: true

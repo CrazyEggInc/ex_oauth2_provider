@@ -12,43 +12,63 @@ defmodule ExOauth2Provider.RedirectURI do
   skipped if the redirect uri is the same as the `:native_redirect_uri` configuration
   setting.
   """
+  @disallowed_schemes ~w(javascript data vbscript file blob)
+  @control_or_whitespace_regex ~r/[\x00-\x1F\x7F\s]/
+
   @spec validate(binary() | nil, keyword()) :: {:ok, binary()} | {:error, binary()}
   def validate(nil, config), do: validate("", config)
 
   def validate(url, config) when is_binary(url) do
-    url
-    |> String.trim()
-    |> case do
-      "" ->
+    cond do
+      String.trim(url) == "" ->
         {:error, "Redirect URI cannot be blank"}
 
-      url ->
-        case native_redirect_uri?(url, config) do
-          true -> {:ok, url}
-          false -> do_validate(url, URI.parse(url), config)
-        end
+      Regex.match?(@control_or_whitespace_regex, url) ->
+        {:error, "Redirect URI cannot contain whitespace or control characters"}
+
+      native_redirect_uri?(url, config) ->
+        {:ok, url}
+
+      true ->
+        do_validate(url, URI.parse(url), config)
     end
   end
+
+  def validate(_url, _config), do: {:error, "Redirect URI must be a string"}
 
   defp do_validate(_url, %{fragment: fragment}, _config) when not is_nil(fragment),
     do: {:error, "Redirect URI cannot contain fragments"}
 
-  defp do_validate(url, %{scheme: scheme} = uri, config) when not is_nil(scheme) do
-    case invalid_ssl_uri?(uri, config) do
-      true -> {:error, "Redirect URI must be an HTTPS/SSL URI"}
-      false -> {:ok, url}
+  defp do_validate(_url, %{userinfo: userinfo}, _config) when not is_nil(userinfo),
+    do: {:error, "Redirect URI cannot contain userinfo"}
+
+  defp do_validate(url, %{scheme: scheme} = uri, config) when is_binary(scheme) do
+    scheme_down = String.downcase(scheme)
+
+    cond do
+      scheme_down in @disallowed_schemes ->
+        {:error, "Redirect URI scheme is not allowed"}
+
+      scheme_down in ["http", "https"] and (is_nil(uri.host) or uri.host == "") ->
+        {:error, "Redirect URI must include a host"}
+
+      invalid_ssl_uri?(uri, scheme_down, config) ->
+        {:error, "Redirect URI must be an HTTPS/SSL URI"}
+
+      true ->
+        {:ok, url}
     end
   end
 
   defp do_validate(_url, _uri, _config),
     do: {:error, "Redirect URI must be an absolute URI"}
 
-  defp invalid_ssl_uri?(%{scheme: "http"} = uri, config) do
+  defp invalid_ssl_uri?(uri, "http", config) do
     Config.force_ssl_in_redirect_uri?(config) and
       not (Keyword.get(config, :allow_public_loopback_redirect_uri, false) and loopback_uri?(uri))
   end
 
-  defp invalid_ssl_uri?(_uri, _config), do: false
+  defp invalid_ssl_uri?(_uri, _scheme, _config), do: false
 
   @doc false
   @deprecated "Use `matches?/3` instead"
@@ -64,15 +84,13 @@ defmodule ExOauth2Provider.RedirectURI do
 
   @spec matches?(URI.t(), URI.t(), keyword()) :: boolean()
   def matches?(%URI{} = uri, %URI{} = client_uri, config) do
-    cond do
-      allow_public_loopback_redirect_uri?(uri, client_uri, config) ->
-        true
-
-      true ->
-        case Config.redirect_uri_match_fun(config) do
-          nil -> client_uri == %{uri | query: nil}
-          fun -> fun.(uri, client_uri, config)
-        end
+    if allow_public_loopback_redirect_uri?(uri, client_uri, config) do
+      true
+    else
+      case Config.redirect_uri_match_fun(config) do
+        nil -> client_uri == %{uri | query: nil}
+        fun -> fun.(uri, client_uri, config)
+      end
     end
   end
 
@@ -80,11 +98,14 @@ defmodule ExOauth2Provider.RedirectURI do
   Check if a url matches a client redirect_uri
   """
   @spec valid_for_authorization?(binary(), binary(), keyword()) :: boolean()
-  def valid_for_authorization?(url, client_url, config) do
+  def valid_for_authorization?(url, client_url, config)
+      when is_binary(url) and is_binary(client_url) do
     url
     |> validate(config)
     |> do_valid_for_authorization?(client_url, config)
   end
+
+  def valid_for_authorization?(_url, _client_url, _config), do: false
 
   defp do_valid_for_authorization?({:error, _error}, _client_url, _config), do: false
 
@@ -129,39 +150,52 @@ defmodule ExOauth2Provider.RedirectURI do
 
   defp allow_public_loopback_redirect_uri?(uri, client_uri, config) do
     Keyword.get(config, :allow_public_loopback_redirect_uri, false) and
-      loopback_origin_registration?(client_uri) and
       loopback_callback_uri?(uri) and
       uri.scheme == client_uri.scheme and
-      same_loopback_host?(uri.host, client_uri.host)
+      same_loopback_host?(uri.host, client_uri.host) and
+      loopback_registration_matches?(uri, client_uri)
+  end
+
+  defp loopback_registration_matches?(uri, client_uri) do
+    loopback_origin_registration?(client_uri) or
+      (loopback_path_registration?(client_uri) and uri.path == client_uri.path)
   end
 
   defp loopback_origin_registration?(%URI{
          scheme: "http",
          host: host,
+         path: path,
          port: port,
+         userinfo: nil,
          query: nil,
          fragment: nil
        })
-       when host in ["127.0.0.1", "localhost", "::1"] and port in [nil, 80],
-       do: true
-
-  defp loopback_origin_registration?(%URI{
-         scheme: "http",
-         host: host,
-         path: "/",
-         port: port,
-         query: nil,
-         fragment: nil
-       })
-       when host in ["127.0.0.1", "localhost", "::1"] and port in [nil, 80],
+       when host in ["127.0.0.1", "localhost", "::1"] and port in [nil, 80] and
+              path in [nil, "", "/"],
        do: true
 
   defp loopback_origin_registration?(_uri), do: false
+
+  defp loopback_path_registration?(%URI{
+         scheme: "http",
+         host: host,
+         path: path,
+         port: port,
+         userinfo: nil,
+         query: nil,
+         fragment: nil
+       })
+       when host in ["127.0.0.1", "localhost", "::1"] and port in [nil, 80] and
+              is_binary(path) and path not in ["", "/"],
+       do: true
+
+  defp loopback_path_registration?(_uri), do: false
 
   defp loopback_callback_uri?(%URI{
          scheme: "http",
          host: host,
          port: port,
+         userinfo: nil,
          fragment: nil
        })
        when host in ["127.0.0.1", "localhost", "::1"] and is_integer(port),
@@ -169,9 +203,10 @@ defmodule ExOauth2Provider.RedirectURI do
 
   defp loopback_callback_uri?(_uri), do: false
 
-  defp loopback_uri?(%URI{scheme: "http", host: host})
-       when host in ["127.0.0.1", "localhost", "::1"],
-       do: true
+  defp loopback_uri?(%URI{scheme: scheme, host: host, userinfo: nil})
+       when is_binary(scheme) and host in ["127.0.0.1", "localhost", "::1"] do
+    String.downcase(scheme) == "http"
+  end
 
   defp loopback_uri?(_uri), do: false
 

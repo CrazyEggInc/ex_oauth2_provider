@@ -66,6 +66,21 @@ defmodule ExOauth2Provider.Plug.VerifyHeaderTest do
       assert Plug.current_access_token(conn) == access_token
     end
 
+    test "with a realm specified does not match realm mid-header", %{
+      conn: conn,
+      access_token: access_token
+    } do
+      opts = VerifyHeader.init(otp_app: :ex_oauth2_provider, realm: "Bearer")
+
+      conn =
+        conn
+        |> Conn.put_req_header("authorization", "Basic foo Bearer #{access_token.token}")
+        |> VerifyHeader.call(opts)
+
+      refute Plug.authenticated?(conn)
+      assert Plug.current_access_token(conn) == nil
+    end
+
     test "with a realm specified and multiple auth headers", %{
       conn: conn,
       access_token: access_token

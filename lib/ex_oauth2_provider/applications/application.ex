@@ -90,18 +90,24 @@ defmodule ExOauth2Provider.Applications.Application do
     |> maybe_new_application_changeset(params, config)
     |> Changeset.cast(params, [:name, :secret, :client_type, :redirect_uri, :scopes])
     |> Changeset.validate_required([:name, :uid, :redirect_uri])
-    |> validate_secret_not_nil()
     |> validate_client_type()
     |> normalize_secret_for_public_client()
+    |> validate_secret()
     |> Scopes.validate_scopes(nil, config)
     |> validate_redirect_uri(config)
     |> Changeset.unique_constraint(:uid)
   end
 
-  defp validate_secret_not_nil(changeset) do
-    case Changeset.get_field(changeset, :secret) do
-      nil -> Changeset.add_error(changeset, :secret, "can't be blank")
-      _ -> changeset
+  defp validate_secret(changeset) do
+    case {Changeset.get_field(changeset, :client_type), Changeset.get_field(changeset, :secret)} do
+      {"public", _} ->
+        changeset
+
+      {_, secret} when is_binary(secret) and byte_size(secret) > 0 ->
+        changeset
+
+      _ ->
+        Changeset.add_error(changeset, :secret, "can't be blank")
     end
   end
 

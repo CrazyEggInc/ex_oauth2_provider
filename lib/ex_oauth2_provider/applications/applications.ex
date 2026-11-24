@@ -81,11 +81,23 @@ defmodule ExOauth2Provider.Applications do
 
   """
   @spec load_application(binary(), binary(), keyword()) :: Application.t() | nil
-  def load_application(uid, secret, config \\ []) do
-    config
-    |> Config.application()
-    |> Config.repo(config).get_by(uid: uid, secret: secret)
+  def load_application(uid, secret, config \\ [])
+
+  def load_application(uid, secret, config) when is_binary(uid) and is_binary(secret) do
+    case get_application(uid, config) do
+      %{client_type: "public"} = application ->
+        if secret == "", do: application, else: nil
+
+      %{secret: app_secret} = application
+      when is_binary(app_secret) and byte_size(app_secret) > 0 and byte_size(secret) > 0 ->
+        if Plug.Crypto.secure_compare(app_secret, secret), do: application, else: nil
+
+      _ ->
+        nil
+    end
   end
+
+  def load_application(_uid, _secret, _config), do: nil
 
   @doc """
   Returns all applications for a owner.

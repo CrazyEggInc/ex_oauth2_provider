@@ -55,19 +55,66 @@ defmodule ExOauth2Provider.Token.Strategy.AuthorizationCodeTest do
     refute is_nil(access_token.refresh_token)
   end
 
-  test "#grant/2 returns access token when client secret not required", %{
-    resource_owner: resource_owner,
+  test "#grant/2 rejects confidential client with empty secret", %{
     application: application
   } do
     QueryHelpers.change!(application, secret: "")
-    valid_request_no_client_secret = Map.drop(@valid_request, ["client_secret"])
+    request_no_client_secret = Map.drop(@valid_request, ["client_secret"])
 
-    assert {:ok, body} = Token.grant(valid_request_no_client_secret, otp_app: :ex_oauth2_provider)
+    assert Token.grant(request_no_client_secret, otp_app: :ex_oauth2_provider) ==
+             {:error, @invalid_client_error, :unprocessable_entity}
+  end
+
+  test "#grant/2 returns access token for public client with valid PKCE", %{
+    resource_owner: resource_owner,
+    application: application,
+    access_grant: access_grant
+  } do
+    verifier = String.duplicate("v", 43)
+    challenge = Base.url_encode64(:crypto.hash(:sha256, verifier), padding: false)
+
+    QueryHelpers.change!(application, client_type: "public", secret: "")
+    QueryHelpers.change!(access_grant, code_challenge: challenge, code_challenge_method: "S256")
+
+    public_request =
+      @valid_request
+      |> Map.drop(["client_secret"])
+      |> Map.put("code_verifier", verifier)
+
+    assert {:ok, body} = Token.grant(public_request, otp_app: :ex_oauth2_provider)
     access_token = QueryHelpers.get_latest_inserted(OauthAccessToken)
 
     assert body.access_token == access_token.token
     assert access_token.resource_owner_id == resource_owner.id
     assert access_token.application_id == application.id
+  end
+
+  test "#grant/2 rejects code_verifier when grant was issued without code_challenge (PKCE downgrade)" do
+    verifier = String.duplicate("v", 43)
+    request = Map.put(@valid_request, "code_verifier", verifier)
+
+    assert Token.grant(request, otp_app: :ex_oauth2_provider) ==
+             {:error, @invalid_grant, :unprocessable_entity}
+  end
+
+  test "#grant/2 rejects invalid format/length code_verifier even if sha256 matches", %{
+    access_grant: access_grant
+  } do
+    short_verifier = "x"
+    challenge = Base.url_encode64(:crypto.hash(:sha256, short_verifier), padding: false)
+    QueryHelpers.change!(access_grant, code_challenge: challenge, code_challenge_method: "S256")
+
+    request = Map.put(@valid_request, "code_verifier", short_verifier)
+
+    assert Token.grant(request, otp_app: :ex_oauth2_provider) ==
+             {:error, @invalid_grant, :unprocessable_entity}
+  end
+
+  test "#grant/2 rejects secret with wrong case (case-sensitive comparison)" do
+    request = Map.put(@valid_request, "client_secret", String.upcase(@client_secret))
+
+    assert Token.grant(request, otp_app: :ex_oauth2_provider) ==
+             {:error, @invalid_client_error, :unprocessable_entity}
   end
 
   test "#grant/2 returns access token with custom response handler" do

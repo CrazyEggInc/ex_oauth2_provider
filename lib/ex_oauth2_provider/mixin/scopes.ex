@@ -9,7 +9,7 @@ defmodule ExOauth2Provider.Mixin.Scopes do
   def put_scopes(changeset, default_server_scopes, config) do
     changeset
     |> Changeset.get_field(:scopes)
-    |> is_empty()
+    |> empty?()
     |> case do
       true ->
         Changeset.change(changeset, %{
@@ -43,9 +43,9 @@ defmodule ExOauth2Provider.Mixin.Scopes do
     end
   end
 
-  defp is_empty(""), do: true
-  defp is_empty(nil), do: true
-  defp is_empty(_), do: false
+  defp empty?(""), do: true
+  defp empty?(nil), do: true
+  defp empty?(_), do: false
 
   @spec parse_default_scope_string(binary() | [binary()] | nil, keyword()) :: binary()
   def parse_default_scope_string(nil, config), do: parse_default_scope_string("", config)

@@ -27,9 +27,22 @@ defmodule ExOauth2Provider.Token.ClientCredentials do
   def grant(%{"grant_type" => "client_credentials"} = request, config \\ []) do
     {:ok, %{request: request}}
     |> Utils.load_client(config)
+    |> validate_confidential_client()
     |> issue_access_token_by_creds(config)
     |> Response.response(config)
   end
+
+  defp validate_confidential_client({:error, params}), do: {:error, params}
+
+  defp validate_confidential_client(
+         {:ok, %{client: %{client_type: "confidential", secret: secret}} = params}
+       )
+       when is_binary(secret) and byte_size(secret) > 0 do
+    {:ok, params}
+  end
+
+  defp validate_confidential_client({:ok, params}),
+    do: Error.add_error({:ok, params}, Error.invalid_client())
 
   defp issue_access_token_by_creds({:error, params}, _config), do: {:error, params}
 

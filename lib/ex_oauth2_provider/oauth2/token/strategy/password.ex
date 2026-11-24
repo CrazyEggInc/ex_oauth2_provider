@@ -33,11 +33,24 @@ defmodule ExOauth2Provider.Token.Password do
     |> get_password_auth_method(config)
     |> load_resource_owner()
     |> Utils.load_client(config)
+    |> validate_confidential_client()
     |> set_defaults()
     |> validate_scopes(config)
     |> issue_access_token(config)
     |> Response.response(config)
   end
+
+  defp validate_confidential_client({:error, params}), do: {:error, params}
+
+  defp validate_confidential_client(
+         {:ok, %{client: %{client_type: "confidential", secret: secret}} = params}
+       )
+       when is_binary(secret) and byte_size(secret) > 0 do
+    {:ok, params}
+  end
+
+  defp validate_confidential_client({:ok, params}),
+    do: Error.add_error({:ok, params}, Error.invalid_client())
 
   defp get_password_auth_method({:ok, params}, config) do
     case Config.password_auth(config) do

@@ -40,6 +40,22 @@ defmodule ExOauth2Provider.Token.Strategy.ClientCredentialsTest do
              {:error, @invalid_client_error, :unprocessable_entity}
   end
 
+  test "#grant/2 error when public client", %{application: application} do
+    QueryHelpers.change!(application, client_type: "public", secret: "")
+    request = Map.delete(@valid_request, "client_secret")
+
+    assert Token.grant(request, otp_app: :ex_oauth2_provider) ==
+             {:error, @invalid_client_error, :unprocessable_entity}
+  end
+
+  test "#grant/2 error when confidential client has empty secret", %{application: application} do
+    QueryHelpers.change!(application, secret: "")
+    request = Map.delete(@valid_request, "client_secret")
+
+    assert Token.grant(request, otp_app: :ex_oauth2_provider) ==
+             {:error, @invalid_client_error, :unprocessable_entity}
+  end
+
   test "#grant/2 returns access token", %{application: application} do
     assert {:ok, body} = Token.grant(@valid_request, otp_app: :ex_oauth2_provider)
     access_token = QueryHelpers.get_latest_inserted(OauthAccessToken)
