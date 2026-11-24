@@ -56,49 +56,28 @@ defmodule ExOauth2Provider.Token.Revoke do
 
   defp load_access_token({:error, %{error: _} = params}, _config), do: {:error, params}
 
-  defp load_access_token({:ok, %{request: %{"token" => _}} = params}, config) do
-    {:ok, params}
-    |> get_access_token(config)
-    |> get_refresh_token(config)
-    |> preload_token_associations(config)
+  defp load_access_token({:ok, %{request: %{"token" => token}} = params}, config)
+       when is_binary(token) do
+    case AccessTokens.get_by_token(token, config) ||
+           AccessTokens.get_by_refresh_token(token, config) do
+      nil ->
+        Error.add_error({:ok, params}, Error.invalid_request())
+
+      access_token ->
+        access_token = Config.repo(config).preload(access_token, :application)
+        {:ok, Map.put(params, :access_token, access_token)}
+    end
   end
 
   defp load_access_token({:ok, params}, _config),
     do: Error.add_error({:ok, params}, Error.invalid_request())
-
-  defp get_access_token({:ok, %{request: %{"token" => token}} = params}, config) do
-    token
-    |> AccessTokens.get_by_token(config)
-    |> case do
-      nil -> Error.add_error({:ok, params}, Error.invalid_request())
-      access_token -> {:ok, Map.put(params, :access_token, access_token)}
-    end
-  end
-
-  defp get_refresh_token({:ok, %{access_token: _} = params}, _config), do: {:ok, params}
-  defp get_refresh_token({:error, %{error: _} = params}, _config), do: {:error, params}
-
-  defp get_refresh_token({:ok, %{request: %{"token" => token}} = params}, config) do
-    token
-    |> AccessTokens.get_by_refresh_token(config)
-    |> case do
-      nil -> Error.add_error({:ok, params}, Error.invalid_request())
-      access_token -> {:ok, Map.put(params, :access_token, access_token)}
-    end
-  end
-
-  defp preload_token_associations({:error, params}, _config), do: {:error, params}
-
-  defp preload_token_associations({:ok, %{access_token: access_token} = params}, config) do
-    {:ok, Map.put(params, :access_token, Config.repo(config).preload(access_token, :application))}
-  end
 
   defp validate_request({:error, params}), do: {:error, params}
 
   defp validate_request({:ok, params}) do
     {:ok, params}
     |> validate_permissions()
-    |> validate_accessible()
+    |> validate_not_revoked()
   end
 
   # This will verify permissions on the access token and client.
@@ -138,12 +117,13 @@ defmodule ExOauth2Provider.Token.Revoke do
   defp validate_ownership({:ok, params}),
     do: Error.add_error({:ok, params}, Error.invalid_request())
 
-  defp validate_accessible({:error, params}), do: {:error, params}
+  defp validate_not_revoked({:error, params}), do: {:error, params}
 
-  defp validate_accessible({:ok, %{access_token: access_token} = params}) do
-    case AccessTokens.is_accessible?(access_token) do
-      true -> {:ok, params}
-      false -> Error.add_error({:ok, params}, Error.invalid_request())
+  defp validate_not_revoked({:ok, %{access_token: access_token} = params}) do
+    if AccessTokens.is_revoked?(access_token) do
+      Error.add_error({:ok, params}, Error.invalid_request())
+    else
+      {:ok, params}
     end
   end
 

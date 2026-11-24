@@ -93,4 +93,38 @@ defmodule ExOauth2Provider.Token.Strategy.RevokeTest do
     assert Token.revoke(valid_request, otp_app: :ex_oauth2_provider) == {:ok, %{}}
     assert AccessTokens.is_revoked?(QueryHelpers.get_latest_inserted(OauthAccessToken))
   end
+
+  test "#revoke/2 revokes by refresh_token", %{
+    valid_request: valid_request,
+    access_token: access_token
+  } do
+    params = Map.put(valid_request, "token", access_token.refresh_token)
+
+    assert Token.revoke(params, otp_app: :ex_oauth2_provider) == {:ok, %{}}
+    assert AccessTokens.is_revoked?(QueryHelpers.get_latest_inserted(OauthAccessToken))
+  end
+
+  test "#revoke/2 revokes expired access token and its refresh token", %{
+    valid_request: valid_request,
+    access_token: access_token
+  } do
+    expired_inserted_at =
+      QueryHelpers.timestamp(OauthAccessToken, :inserted_at,
+        seconds: -(access_token.expires_in + 60)
+      )
+
+    QueryHelpers.change!(access_token, inserted_at: expired_inserted_at)
+
+    params = Map.put(valid_request, "token", access_token.refresh_token)
+
+    assert Token.revoke(params, otp_app: :ex_oauth2_provider) == {:ok, %{}}
+    assert AccessTokens.is_revoked?(QueryHelpers.get_latest_inserted(OauthAccessToken))
+  end
+
+  test "#revoke/2 handles non-string token without raising", %{valid_request: valid_request} do
+    params = Map.put(valid_request, "token", ["bad"])
+
+    assert Token.revoke(params, otp_app: :ex_oauth2_provider) == {:ok, %{}}
+    refute AccessTokens.is_revoked?(QueryHelpers.get_latest_inserted(OauthAccessToken))
+  end
 end

@@ -1,9 +1,39 @@
 defmodule ExOauth2Provider.Mixin.Revocable do
   @moduledoc false
 
+  import Ecto.Query
   alias Ecto.{Changeset, Schema}
   alias ExOauth2Provider.Config
   alias ExOauth2Provider.Schema, as: SchemaHelpers
+
+  @doc """
+  Atomically revokes an unrevoked record once inside the database.
+
+  Returns `{:ok, updated_data}` if this call transitioned `revoked_at` from `nil`
+  to a timestamp, or `{:error, :already_revoked}` if it was already revoked.
+  """
+  @spec revoke_once(Schema.t(), keyword()) :: {:ok, Schema.t()} | {:error, :already_revoked}
+  def revoke_once(data, config \\ [])
+
+  def revoke_once(%struct{id: id, revoked_at: nil} = data, config) do
+    revoked_at = SchemaHelpers.__timestamp_for__(struct, :revoked_at)
+
+    updates =
+      if :updated_at in struct.__schema__(:fields) do
+        [revoked_at: revoked_at, updated_at: SchemaHelpers.__timestamp_for__(struct, :updated_at)]
+      else
+        [revoked_at: revoked_at]
+      end
+
+    query = from(r in struct, where: r.id == ^id and is_nil(r.revoked_at))
+
+    case Config.repo(config).update_all(query, set: updates) do
+      {1, _} -> {:ok, %{data | revoked_at: revoked_at}}
+      {0, _} -> {:error, :already_revoked}
+    end
+  end
+
+  def revoke_once(_data, _config), do: {:error, :already_revoked}
 
   @doc """
   Revoke data.

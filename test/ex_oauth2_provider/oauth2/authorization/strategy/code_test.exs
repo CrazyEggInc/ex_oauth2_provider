@@ -382,4 +382,31 @@ defmodule ExOauth2Provider.Authorization.CodeTest do
              {:redirect,
               "https://example.com/path?error=access_denied&error_description=The+resource+owner+or+authorization+server+denied+the+request.&param=1&state=40612"}
   end
+
+  test "#authorize/3 rejects non-string parameters without raising", %{
+    resource_owner: resource_owner
+  } do
+    for {field, value} <- [
+          {"client_id", ["x"]},
+          {"redirect_uri", ["https://example.com/cb"]},
+          {"scope", ["read"]},
+          {"state", ["abc"]},
+          {"response_type", ["code"]}
+        ] do
+      request = Map.put(@valid_request, field, value)
+
+      assert {:error, %{error: _}, _status} =
+               Authorization.authorize(resource_owner, request, otp_app: :ex_oauth2_provider)
+    end
+  end
+
+  test "Error.add_error/2 maps changeset errors to invalid_request instead of raising" do
+    changeset =
+      %OauthAccessGrant{}
+      |> Ecto.Changeset.change()
+      |> Ecto.Changeset.add_error(:scopes, "is invalid")
+
+    assert {:error, %{error: %{error: :invalid_request}, error_http_status: :bad_request}} =
+             ExOauth2Provider.Utils.Error.add_error({:ok, %{}}, changeset)
+  end
 end

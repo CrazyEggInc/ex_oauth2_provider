@@ -205,6 +205,7 @@ defmodule ExOauth2Provider.Authorization.Code do
     {:ok, params}
     |> validate_resource_owner()
     |> validate_redirect_uri(config)
+    |> validate_state()
     |> validate_scopes(config)
     |> validate_pkce()
   end
@@ -216,9 +217,19 @@ defmodule ExOauth2Provider.Authorization.Code do
     end
   end
 
+  defp validate_state({:error, params}), do: {:error, params}
+
+  defp validate_state({:ok, %{request: request} = params}) do
+    case Map.get(request, "state") do
+      state when is_nil(state) or is_binary(state) or is_integer(state) -> {:ok, params}
+      _ -> Error.add_error({:ok, params}, Error.invalid_request())
+    end
+  end
+
   defp validate_scopes({:error, params}, _config), do: {:error, params}
 
-  defp validate_scopes({:ok, %{request: %{"scope" => scopes}, client: client} = params}, config) do
+  defp validate_scopes({:ok, %{request: %{"scope" => scopes}, client: client} = params}, config)
+       when is_nil(scopes) or is_binary(scopes) do
     scopes = Scopes.to_list(scopes)
 
     server_scopes =
@@ -231,6 +242,9 @@ defmodule ExOauth2Provider.Authorization.Code do
       false -> Error.add_error({:ok, params}, Error.invalid_scopes())
     end
   end
+
+  defp validate_scopes({:ok, params}, _config),
+    do: Error.add_error({:ok, params}, Error.invalid_request())
 
   @s256_code_challenge_regex ~r/\A[A-Za-z0-9\-_]{43}\z/
 

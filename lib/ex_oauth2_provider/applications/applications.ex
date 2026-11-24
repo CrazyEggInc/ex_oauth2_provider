@@ -62,11 +62,15 @@ defmodule ExOauth2Provider.Applications do
 
   """
   @spec get_application(binary(), keyword()) :: Application.t() | nil
-  def get_application(uid, config \\ []) do
+  def get_application(uid, config \\ [])
+
+  def get_application(uid, config) when is_binary(uid) do
     config
     |> Config.application()
     |> Config.repo(config).get_by(uid: uid)
   end
+
+  def get_application(_uid, _config), do: nil
 
   @doc """
   Gets a single application by uid and secret.

@@ -51,13 +51,13 @@ defmodule ExOauth2Provider.Authorization.Utils.Response do
 
   defp add_state(payload, request) do
     case request["state"] do
-      nil ->
-        payload
-
-      state ->
+      state when is_binary(state) or is_integer(state) ->
         %{"state" => state}
         |> Map.merge(payload)
         |> Utils.remove_empty_values()
+
+      _ ->
+        payload
     end
   end
 

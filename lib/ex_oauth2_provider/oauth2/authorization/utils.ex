@@ -17,7 +17,8 @@ defmodule ExOauth2Provider.Authorization.Utils do
     {:ok, %{resource_owner: resource_owner, request: request}}
   end
 
-  defp load_client({:ok, %{request: %{"client_id" => client_id}} = params}, config) do
+  defp load_client({:ok, %{request: %{"client_id" => client_id}} = params}, config)
+       when is_binary(client_id) do
     case Applications.get_application(client_id, config) do
       nil -> Error.add_error({:ok, params}, Error.invalid_client())
       client -> {:ok, Map.put(params, :client, client)}

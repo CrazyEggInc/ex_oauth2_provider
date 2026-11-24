@@ -222,6 +222,39 @@ defmodule ExOauth2Provider.Token.Strategy.AuthorizationCodeTest do
              {:error, @invalid_grant, :unprocessable_entity}
   end
 
+  test "#grant/2 error when resource owner was deleted", %{
+    resource_owner: resource_owner
+  } do
+    Dummy.Repo.query!(
+      "ALTER TABLE oauth_access_grants DROP CONSTRAINT oauth_access_grants_resource_owner_id_fkey"
+    )
+
+    Dummy.Repo.query!(
+      "ALTER TABLE oauth_applications DROP CONSTRAINT oauth_applications_owner_id_fkey"
+    )
+
+    Dummy.Repo.delete!(resource_owner)
+
+    assert Token.grant(@valid_request, otp_app: :ex_oauth2_provider) ==
+             {:error, @invalid_grant, :unprocessable_entity}
+
+    assert Dummy.Repo.aggregate(OauthAccessToken, :count, :id) == 0
+  end
+
+  test "#grant/2 rejects non-string parameters without raising" do
+    for {field, value} <- [
+          {"code", ["x"]},
+          {"redirect_uri", ["x"]},
+          {"client_id", ["x"]},
+          {"client_secret", ["x"]},
+          {"code_verifier", ["x"]},
+          {"grant_type", ["authorization_code"]}
+        ] do
+      params = Map.put(@valid_request, field, value)
+      assert {:error, %{error: _}, _status} = Token.grant(params, otp_app: :ex_oauth2_provider)
+    end
+  end
+
   def access_token_response_body_handler(body, access_token) do
     Map.merge(body, %{custom_attr: access_token.inserted_at})
   end

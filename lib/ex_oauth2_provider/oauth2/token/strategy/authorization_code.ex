@@ -2,6 +2,8 @@ defmodule ExOauth2Provider.Token.AuthorizationCode do
   @moduledoc """
   Functions for dealing with authorization code strategy.
   """
+  import Ecto.Query
+
   alias ExOauth2Provider.{
     AccessGrants,
     AccessTokens,
@@ -44,29 +46,51 @@ defmodule ExOauth2Provider.Token.AuthorizationCode do
          {:ok, %{access_grant: access_grant, request: _} = params},
          config
        ) do
+    repo = Config.repo(config)
     token_params = %{use_refresh_token: Config.use_refresh_token?(config)}
 
     result =
-      Config.repo(config).transaction(fn ->
-        access_grant
-        |> revoke_grant(config)
-        |> maybe_create_access_token(token_params, config)
+      repo.transaction(fn ->
+        with {:ok, revoked_grant} <- revoke_grant(access_grant, config),
+             {:ok, resource_owner} <- lock_resource_owner(revoked_grant, config),
+             {:ok, access_token} <-
+               maybe_create_access_token(resource_owner, revoked_grant, token_params, config) do
+          access_token
+        else
+          {:error, error} -> repo.rollback(error)
+        end
       end)
 
     case result do
-      {:ok, {:error, error}} -> Error.add_error({:ok, params}, error)
-      {:ok, {:ok, access_token}} -> {:ok, Map.put(params, :access_token, access_token)}
+      {:ok, access_token} -> {:ok, Map.put(params, :access_token, access_token)}
       {:error, error} -> Error.add_error({:ok, params}, error)
     end
   end
 
-  defp revoke_grant(%{revoked_at: nil} = access_grant, config),
-    do: AccessGrants.revoke(access_grant, config)
+  defp revoke_grant(access_grant, config) do
+    case AccessGrants.revoke_once(access_grant, config) do
+      {:ok, revoked_grant} -> {:ok, revoked_grant}
+      {:error, :already_revoked} -> {:error, Error.invalid_grant()}
+    end
+  end
 
-  defp maybe_create_access_token({:error, _} = error, _token_params, _config), do: error
+  defp lock_resource_owner(%{resource_owner_id: owner_id}, config) when not is_nil(owner_id) do
+    repo = Config.repo(config)
+    owner_schema = Config.resource_owner(config)
+
+    from(u in owner_schema, where: u.id == ^owner_id, lock: "FOR SHARE")
+    |> repo.one()
+    |> case do
+      nil -> {:error, Error.invalid_grant()}
+      owner -> {:ok, owner}
+    end
+  end
+
+  defp lock_resource_owner(_grant, _config), do: {:error, Error.invalid_grant()}
 
   defp maybe_create_access_token(
-         {:ok, %{resource_owner: resource_owner, application: application, scopes: scopes}},
+         resource_owner,
+         %{application: application, scopes: scopes},
          token_params,
          config
        ) do
@@ -83,16 +107,20 @@ defmodule ExOauth2Provider.Token.AuthorizationCode do
   defp load_active_access_grant(
          {:ok, %{client: client, request: %{"code" => code}} = params},
          config
-       ) do
+       )
+       when is_binary(code) do
     client
     |> AccessGrants.get_active_grant_for(code, config)
-    |> Config.repo(config).preload(:resource_owner)
-    |> Config.repo(config).preload(:application)
+    |> Config.repo(config).preload([:resource_owner, :application])
     |> case do
       nil -> Error.add_error({:ok, params}, Error.invalid_grant())
+      %{resource_owner: nil} -> Error.add_error({:ok, params}, Error.invalid_grant())
       access_grant -> {:ok, Map.put(params, :access_grant, access_grant)}
     end
   end
+
+  defp load_active_access_grant({:ok, %{request: %{"code" => _}} = params}, _config),
+    do: Error.add_error({:ok, params}, Error.invalid_request())
 
   defp load_active_access_grant({:ok, params}, _config),
     do: Error.add_error({:ok, params}, Error.invalid_grant())
@@ -103,12 +131,16 @@ defmodule ExOauth2Provider.Token.AuthorizationCode do
 
   defp validate_redirect_uri(
          {:ok, %{request: %{"redirect_uri" => redirect_uri}, access_grant: grant} = params}
-       ) do
+       )
+       when is_binary(redirect_uri) do
     case grant.redirect_uri == redirect_uri do
       true -> {:ok, params}
       false -> Error.add_error({:ok, params}, Error.invalid_grant())
     end
   end
+
+  defp validate_redirect_uri({:ok, %{request: %{"redirect_uri" => _}} = params}),
+    do: Error.add_error({:ok, params}, Error.invalid_request())
 
   defp validate_redirect_uri({:ok, params}),
     do: Error.add_error({:ok, params}, Error.invalid_grant())

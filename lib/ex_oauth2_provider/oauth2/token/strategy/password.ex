@@ -67,7 +67,8 @@ defmodule ExOauth2Provider.Token.Password do
             password_auth: {module, method},
             request: %{"username" => username, "password" => password}
           } = params}
-       ) do
+       )
+       when is_binary(username) and is_binary(password) do
     case apply(module, method, [username, password]) do
       {:ok, resource_owner} ->
         {:ok, Map.put(params, :resource_owner, resource_owner)}
@@ -122,7 +123,8 @@ defmodule ExOauth2Provider.Token.Password do
 
   defp validate_scopes({:error, params}, _config), do: {:error, params}
 
-  defp validate_scopes({:ok, %{request: %{"scope" => scopes}, client: client} = params}, config) do
+  defp validate_scopes({:ok, %{request: %{"scope" => scopes}, client: client} = params}, config)
+       when is_nil(scopes) or is_binary(scopes) do
     scopes = Scopes.to_list(scopes)
 
     server_scopes =
@@ -135,4 +137,7 @@ defmodule ExOauth2Provider.Token.Password do
       false -> Error.add_error({:ok, params}, Error.invalid_scopes())
     end
   end
+
+  defp validate_scopes({:ok, params}, _config),
+    do: Error.add_error({:ok, params}, Error.invalid_request())
 end

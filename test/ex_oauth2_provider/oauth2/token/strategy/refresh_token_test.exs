@@ -96,6 +96,49 @@ defmodule ExOauth2Provider.Token.Strategy.RefreshTokenTest do
              {:error, @invalid_request_error, :bad_request}
   end
 
+  test "#grant/2 error when access token has been revoked and revoke_refresh_token_on_use is false",
+       %{
+         valid_request: valid_request,
+         access_token: access_token
+       } do
+    QueryHelpers.change!(access_token, revoked_at: DateTime.utc_now())
+
+    assert RefreshToken.grant(valid_request,
+             otp_app: :ex_oauth2_provider,
+             revoke_refresh_token_on_use: false
+           ) == {:error, @invalid_request_error, :bad_request}
+  end
+
+  test "#grant/2 error when resource owner was deleted", %{
+    valid_request: valid_request,
+    access_token: access_token
+  } do
+    owner = Repo.get!(Dummy.Users.User, access_token.resource_owner_id)
+
+    Repo.query!(
+      "ALTER TABLE oauth_access_tokens DROP CONSTRAINT oauth_access_tokens_resource_owner_id_fkey"
+    )
+
+    Repo.query!("ALTER TABLE oauth_applications DROP CONSTRAINT oauth_applications_owner_id_fkey")
+    Repo.delete!(owner)
+
+    assert {:error, %{error: :invalid_grant}, :unprocessable_entity} =
+             Token.grant(valid_request, otp_app: :ex_oauth2_provider)
+
+    assert Repo.aggregate(OauthAccessToken, :count, :id) == 1
+  end
+
+  test "#grant/2 rejects non-string parameters without raising", %{valid_request: valid_request} do
+    for {field, value} <- [
+          {"refresh_token", ["x"]},
+          {"client_id", ["x"]},
+          {"client_secret", ["x"]}
+        ] do
+      params = Map.put(valid_request, field, value)
+      assert {:error, %{error: _}, _status} = Token.grant(params, otp_app: :ex_oauth2_provider)
+    end
+  end
+
   test "#grant/2 returns access token", %{
     valid_request: valid_request,
     access_token: access_token
